@@ -1,0 +1,13 @@
+# Godot 4 cache and imported assets
+.godot/
+
+# Exported builds
+build/
+export/
+*.exe
+*.pck
+*.zip
+
+# OS junk
+.DS_Store
+Thumbs.db
