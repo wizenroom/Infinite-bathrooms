@@ -1,32 +1,48 @@
-# gmtk-terragen
+# gmtk-terragen — "OCCUPIED" prototype
 
-GMTK game jam entry built in **Godot 4.4** (GDScript, 3D). The core idea:
-procedural terrain generation with objects spawned on the generated surface.
+GMTK game jam entry built in **Godot 4** (GDScript, 3D top-down).
 
-## Getting started
+**The pitch:** you really need to go. The bathroom is infinite. Every stall is
+occupied except one. Knock on doors, fight whatever answers, find the free
+stall before the urgency meter fills.
 
-1. Open the project in Godot 4.4+ (Project Manager > Import > select `project.godot`).
-2. Press F5 to run. You'll see noise-generated terrain with placeholder boxes spawned on it.
-3. Press **R** in-game to regenerate the terrain with a new seed.
+## Play it
+
+1. Open the project in Godot 4.6+ (Project Manager > Import > `project.godot`).
+2. Press F5.
+
+| Input | Action |
+| --- | --- |
+| WASD | Move |
+| Mouse | Aim |
+| LMB / Space | Melee swing |
+| E | Knock on nearest stall door |
+| R | Restart (after win/lose) |
+
+Reading the bathroom: **red indicator light** usually means a hostile occupant,
+**feet under the door** almost always do, and ~15% of indicators lie. Knocking
+can also find loot (plunger upgrade, urgency relief), friendly NPCs, or the one
+free stall — which is guarded.
 
 ## Project layout
 
 ```
 scenes/
-  main.tscn            Main scene: terrain, spawner, camera, light, sky
+  prototype.tscn         Main scene (everything is built in code from here)
+  main.tscn              Old terrain demo, kept for reference
+scripts/proto/
+  bathroom.gd            Manager: corridor generation, knock outcomes, HUD, win/lose
+  stall.gd               Stall geometry, door, indicator/feet signals
+  player.gd              Movement, mouse aim, melee, urgency meter
+  enemy.gd               Chase / telegraph / lunge melee AI
 scripts/
-  terrain_generator.gd Heightmap terrain (mesh + trimesh collision) from FastNoiseLite
-  object_spawner.gd    Spawns objects on the terrain surface after generation
-  main.gd              Input handling (R = regenerate)
+  terrain_generator.gd   (old demo) heightmap terrain
+  object_spawner.gd      (old demo) surface spawner
 ```
 
-## Where to plug in your own generation
+## Tuning knobs
 
-- `TerrainGenerator.get_height(x, z)` is the single source of truth for terrain
-  height. Replace its noise lookup with your own algorithm (wave function
-  collapse, erosion simulation, etc.) and the mesh, collision, and spawning all
-  follow automatically.
-- `ObjectSpawner.spawn_scene` — assign any `PackedScene` in the inspector to
-  spawn real objects instead of placeholder boxes.
-- `ObjectSpawner.random_surface_point` sampling can be swapped for
-  density-based or rule-based placement.
+- Outcome weights (`W_HOSTILE` etc.) and free-stall depth: top of `bathroom.gd`
+- Urgency rates, speeds, attack stats: top of `player.gd`
+- Enemy aggression and timing: top of `enemy.gd`
+- Signal honesty (lying indicators, feet visibility): `stall.gd`
