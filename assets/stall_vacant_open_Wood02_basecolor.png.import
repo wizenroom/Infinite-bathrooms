@@ -3,9 +3,10 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://dhmxk1kiv6oxc"
-path="res://.godot/imported/stall_vacant_open_Wood02_basecolor.png-30be06a835e50461da6f9cfde9c912db.ctex"
+path.s3tc="res://.godot/imported/stall_vacant_open_Wood02_basecolor.png-30be06a835e50461da6f9cfde9c912db.s3tc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "e63663f79557904aee82d21c23d84bcd"
@@ -14,11 +15,11 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/stall_vacant_open_Wood02_basecolor.png"
-dest_files=["res://.godot/imported/stall_vacant_open_Wood02_basecolor.png-30be06a835e50461da6f9cfde9c912db.ctex"]
+dest_files=["res://.godot/imported/stall_vacant_open_Wood02_basecolor.png-30be06a835e50461da6f9cfde9c912db.s3tc.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0
@@ -40,4 +41,4 @@ process/normal_map_invert_y=false
 process/hdr_as_srgb=false
 process/hdr_clamp_exposure=false
 process/size_limit=0
-detect_3d/compress_to=1
+detect_3d/compress_to=0

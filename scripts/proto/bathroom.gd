@@ -7,6 +7,15 @@ extends Node3D
 ## Controls: WASD move, mouse look, LMB/Space swing, E knock, R restart (after end).
 
 const PLANT_SCENE := preload("res://assets/plant.glb")
+const FLOOR_TILE := preload("res://assets/floor_tile.glb")
+const CEILING_TILE := preload("res://assets/ceiling_tile.glb")
+
+## The tile mesh sits at a baked offset in its GLB; cancel it out.
+const TILE_BAKED_CENTER := Vector3(-15.24463, -1.17534, 0.300203)
+const TILE_SIZE := 2.0
+const CEILING_Y := 2.8
+## Stall depth is 1.57 from the door plane at x=3.4, so backs end at 4.97.
+const WALL_X := 5.17
 
 const STALL_SPACING := 1.4  # stall models are 1.29 wide; keep the row tight
 const STALL_X := 3.4
@@ -30,6 +39,7 @@ var free_stall_index := 0
 var free_stall: Stall = null
 var _free_placed := false
 var next_z := -4.0
+var next_tile_z := 4.0
 var pair_count := 0
 var game_ended := false
 var _warn_cooldown := 0.0
@@ -57,15 +67,19 @@ func _ready() -> void:
 
 	_show_message("Every stall is OCCUPIED... except one. Find it. (E = knock)", 4.5)
 
-	# Dev aid: PROTO_DEBUG=knock auto-opens the first hostile stall so the
-	# interior can be checked without playing up to it.
-	if OS.get_environment("PROTO_DEBUG") == "knock":
+	# Dev aid: PROTO_DEBUG=knock / PROTO_DEBUG=lid auto-opens the first
+	# hostile / vacant stall so the interior can be checked without playing.
+	var dbg := OS.get_environment("PROTO_DEBUG")
+	if dbg == "knock" or dbg == "lid":
+		var want: Stall.Outcome = Stall.Outcome.HOSTILE if dbg == "knock" else Stall.Outcome.EMPTY
 		get_tree().create_timer(1.5).timeout.connect(func() -> void:
 			for s in stalls:
-				if s.outcome == Stall.Outcome.HOSTILE and not s.is_open:
-					player.global_position = s.global_position + s.global_transform.basis.z * -2.0
+				if s.outcome == want and not s.is_open:
+					player.global_position = s.global_position + s.global_transform.basis.z * -2.2
 					player.look_at(s.global_position + Vector3(0, 1.2, 0))
 					player.rotation.x = 0
+					player._pitch = -0.35
+					player._head.rotation.x = -0.35
 					s.knock()
 					break
 		)
@@ -81,6 +95,9 @@ func _process(delta: float) -> void:
 	while next_z > player.global_position.z - GEN_AHEAD:
 		_spawn_stall_pair(next_z)
 		next_z -= STALL_SPACING
+	while next_tile_z > player.global_position.z - GEN_AHEAD:
+		_spawn_tile_row(next_tile_z)
+		next_tile_z -= TILE_SIZE
 
 	_bar.value = player.urgency
 
@@ -137,14 +154,14 @@ func _spawn_stall_pair(z: float) -> void:
 		tube_mat.emission_enabled = true
 		tube_mat.emission = Color(0.8, 0.9, 0.8)
 		fixture.material_override = tube_mat
-		fixture.position = Vector3(0, 2.55, z)
+		fixture.position = Vector3(0, CEILING_Y - 0.05, z)
 		add_child(fixture)
 
 		var light := FlickerLight.new()
 		light.light_color = Color(0.85, 0.95, 0.85)
 		light.base_energy = 1.4
 		light.omni_range = 9.0
-		light.position = Vector3(0, 2.3, z)
+		light.position = Vector3(0, CEILING_Y - 0.3, z)
 		add_child(light)
 
 	# Occasional roamer in the corridor so combat happens between knocks too.
@@ -269,27 +286,29 @@ func _build_environment() -> void:
 	world_env.environment = env
 	add_child(world_env)
 
-	# One long box world. 1000m of bathroom is "infinite enough".
+	# One long box world; floor/ceiling are collision-only, the tile models
+	# provide the visuals. Walls sit flush against the stall backs.
 	var world := StaticBody3D.new()
 	add_child(world)
-	_world_box(world, Vector3(13, 1, 1000), Vector3(0, -0.5, -480), Color(0.55, 0.58, 0.6))       # floor
-	_world_box(world, Vector3(13, 1, 1000), Vector3(0, 3.1, -480), Color(0.35, 0.36, 0.38))       # ceiling
-	_world_box(world, Vector3(0.4, 3.4, 1000), Vector3(-5.7, 1.6, -480), Color(0.5, 0.47, 0.4))   # left wall
-	_world_box(world, Vector3(0.4, 3.4, 1000), Vector3(5.7, 1.6, -480), Color(0.5, 0.47, 0.4))    # right wall
-	_world_box(world, Vector3(13, 3.4, 0.4), Vector3(0, 1.6, 3.0), Color(0.5, 0.47, 0.4))         # back wall
+	_world_box(world, Vector3(13, 1, 1000), Vector3(0, -0.5, -480), Color.BLACK, false)                    # floor
+	_world_box(world, Vector3(13, 1, 1000), Vector3(0, CEILING_Y + 0.51, -480), Color.BLACK, false)        # ceiling
+	_world_box(world, Vector3(0.4, 3.4, 1000), Vector3(-WALL_X, 1.6, -480), Color(0.5, 0.47, 0.4))         # left wall
+	_world_box(world, Vector3(0.4, 3.4, 1000), Vector3(WALL_X, 1.6, -480), Color(0.5, 0.47, 0.4))          # right wall
+	_world_box(world, Vector3(11, 3.4, 0.4), Vector3(0, 1.6, 3.0), Color(0.5, 0.47, 0.4))                  # back wall
 
 
-func _world_box(body: StaticBody3D, size: Vector3, pos: Vector3, color: Color) -> void:
-	var mesh_inst := MeshInstance3D.new()
-	var mesh := BoxMesh.new()
-	mesh.size = size
-	mesh_inst.mesh = mesh
-	mesh_inst.position = pos
-	var mat := StandardMaterial3D.new()
-	mat.albedo_color = color
-	mat.roughness = 0.55
-	mesh_inst.material_override = mat
-	body.add_child(mesh_inst)
+func _world_box(body: StaticBody3D, size: Vector3, pos: Vector3, color: Color, visible_mesh := true) -> void:
+	if visible_mesh:
+		var mesh_inst := MeshInstance3D.new()
+		var mesh := BoxMesh.new()
+		mesh.size = size
+		mesh_inst.mesh = mesh
+		mesh_inst.position = pos
+		var mat := StandardMaterial3D.new()
+		mat.albedo_color = color
+		mat.roughness = 0.55
+		mesh_inst.material_override = mat
+		body.add_child(mesh_inst)
 
 	var col := CollisionShape3D.new()
 	var shape := BoxShape3D.new()
@@ -297,6 +316,21 @@ func _world_box(body: StaticBody3D, size: Vector3, pos: Vector3, color: Color) -
 	col.shape = shape
 	col.position = pos
 	body.add_child(col)
+
+
+func _spawn_tile_row(z: float) -> void:
+	for x in [-4.0, -2.0, 0.0, 2.0, 4.0]:
+		_place_tile(FLOOR_TILE, Vector3(x, -0.005, z))
+		_place_tile(CEILING_TILE, Vector3(x, CEILING_Y, z))
+
+
+func _place_tile(scene: PackedScene, pos: Vector3) -> void:
+	var wrapper := Node3D.new()
+	add_child(wrapper)
+	wrapper.position = pos
+	var inst: Node3D = scene.instantiate()
+	inst.position = -TILE_BAKED_CENTER
+	wrapper.add_child(inst)
 
 
 func _build_hud() -> void:

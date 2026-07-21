@@ -3,9 +3,10 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://dy2sop3nohh1t"
-path="res://.godot/imported/stall_vacant_closed_4K_tiling_19_metallic-4K_tiling_19_roughness.png-3020bd7bdf9f34609728f5954adf81e1.ctex"
+path.s3tc="res://.godot/imported/stall_vacant_closed_4K_tiling_19_metallic-4K_tiling_19_roughness.png-3020bd7bdf9f34609728f5954adf81e1.s3tc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "c2c7c596251be6f4610162f463aebc35"
@@ -14,11 +15,11 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/stall_vacant_closed_4K_tiling_19_metallic-4K_tiling_19_roughness.png"
-dest_files=["res://.godot/imported/stall_vacant_closed_4K_tiling_19_metallic-4K_tiling_19_roughness.png-3020bd7bdf9f34609728f5954adf81e1.ctex"]
+dest_files=["res://.godot/imported/stall_vacant_closed_4K_tiling_19_metallic-4K_tiling_19_roughness.png-3020bd7bdf9f34609728f5954adf81e1.s3tc.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0
@@ -40,4 +41,4 @@ process/normal_map_invert_y=false
 process/hdr_as_srgb=false
 process/hdr_clamp_exposure=false
 process/size_limit=0
-detect_3d/compress_to=1
+detect_3d/compress_to=0

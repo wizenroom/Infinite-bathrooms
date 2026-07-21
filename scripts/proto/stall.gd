@@ -73,6 +73,8 @@ func knock() -> void:
 		_seat_occupant()
 	if outcome == Outcome.FREE:
 		_bless_the_throne()
+	if not _has_occupant():
+		_open_lid()
 
 	opened.emit(self, outcome)
 
@@ -149,6 +151,32 @@ func _bless_the_throne() -> void:
 		var s: Vector3 = mi.mesh.get_aabb().size
 		if s.distance_to(LID_SIZE) < 0.03:
 			mi.material_override = gold
+
+
+## Swing the toilet lid up around its rear (tank-side) edge. The lid is a
+## separate mesh in the GLB, found by its AABB size signature; we wrap it in
+## a pivot placed on the hinge edge and rotate that.
+func _open_lid() -> void:
+	for mi in _model.find_children("*", "MeshInstance3D", true, false):
+		if mi.mesh == null:
+			continue
+		if mi.mesh.get_aabb().size.distance_to(LID_SIZE) > 0.03:
+			continue
+
+		# Lid bounds in stall-local space (world AABB axes would be wrong
+		# because the manager rotates the whole stall).
+		var to_stall: Transform3D = global_transform.affine_inverse() * mi.global_transform
+		var box: AABB = to_stall * mi.mesh.get_aabb()
+
+		var hinge := box.get_center()
+		hinge.z = box.end.z - 0.02  # rear edge, next to the tank
+
+		var pivot := Node3D.new()
+		add_child(pivot)
+		pivot.position = hinge
+		mi.reparent(pivot)
+		pivot.rotation.x = deg_to_rad(100.0)
+		return
 
 
 func _build_collision() -> void:

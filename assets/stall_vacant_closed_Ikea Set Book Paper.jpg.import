@@ -3,9 +3,10 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://cqcxnnu03avbc"
-path="res://.godot/imported/stall_vacant_closed_Ikea Set Book Paper.jpg-20583b42a264c84c289a7d411e03b6fd.ctex"
+path.s3tc="res://.godot/imported/stall_vacant_closed_Ikea Set Book Paper.jpg-20583b42a264c84c289a7d411e03b6fd.s3tc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "b5ebed88e4e35fc8cc7f15f05bf9930d"
@@ -14,11 +15,11 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/stall_vacant_closed_Ikea Set Book Paper.jpg"
-dest_files=["res://.godot/imported/stall_vacant_closed_Ikea Set Book Paper.jpg-20583b42a264c84c289a7d411e03b6fd.ctex"]
+dest_files=["res://.godot/imported/stall_vacant_closed_Ikea Set Book Paper.jpg-20583b42a264c84c289a7d411e03b6fd.s3tc.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0
@@ -40,4 +41,4 @@ process/normal_map_invert_y=false
 process/hdr_as_srgb=false
 process/hdr_clamp_exposure=false
 process/size_limit=0
-detect_3d/compress_to=1
+detect_3d/compress_to=0
