@@ -8,11 +8,11 @@ extends Node3D
 
 const PLANT_SCENE := preload("res://assets/plant.glb")
 
-const STALL_SPACING := 2.4
+const STALL_SPACING := 1.4  # stall models are 1.29 wide; keep the row tight
 const STALL_X := 3.4
 const GEN_AHEAD := 45.0
 const KNOCK_RANGE := 3.0
-const LIGHT_EVERY_N_PAIRS := 3
+const LIGHT_EVERY_N_PAIRS := 5
 
 # Knock outcome weights (FREE is placed deterministically, not rolled).
 const W_HOSTILE := 45
@@ -148,15 +148,15 @@ func _spawn_stall_pair(z: float) -> void:
 		add_child(light)
 
 	# Occasional roamer in the corridor so combat happens between knocks too.
-	if stall_count > 8 and rng.randf() < 0.15:
+	if stall_count > 12 and rng.randf() < 0.08:
 		_spawn_enemy(Vector3(rng.randf_range(-1.6, 1.6), 0, z))
 
-	# Decorative plant in the gap between stall pairs now and then.
-	if rng.randf() < 0.12:
+	# Decorative plant hugging the corridor edge now and then.
+	if rng.randf() < 0.06:
 		var plant: Node3D = PLANT_SCENE.instantiate()
 		var ps := rng.randf_range(0.5, 0.7)
 		plant.scale = Vector3(ps, ps, ps)
-		plant.position = Vector3([-2.75, 2.75][rng.randi_range(0, 1)], 0.32 * ps, z + STALL_SPACING * 0.5)
+		plant.position = Vector3([-2.5, 2.5][rng.randi_range(0, 1)], 0.32 * ps, z + STALL_SPACING * 0.5)
 		plant.rotation.y = rng.randf_range(0, TAU)
 		add_child(plant)
 

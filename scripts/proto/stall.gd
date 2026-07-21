@@ -1,52 +1,89 @@
 class_name Stall
 extends Node3D
-## One bathroom stall. The root sits at the door plane; the door faces
-## local -Z (toward the corridor once the manager rotates the stall).
+## One bathroom stall using the real stall models. The root sits at the
+## door plane; the door faces local -Z (toward the corridor once the
+## manager rotates the stall). Interior spans local z 0..1.9.
 ##
-## Occupied stalls contain an actual man sitting on the toilet. Knocking
-## opens the door; hostiles get up and come at you (the manager swaps the
-## sitting model for a live enemy).
+## The four GLB variants (occupied/vacant x closed/open) were exported
+## side by side from one Blender scene, so each carries a baked X offset
+## that we cancel out. "Opening" the door = swapping closed -> open model.
 ##
-## Readable signals: indicator light above the door (red = occupied,
-## 15% liars) and feet visible in the gap under the door.
+## Signs on the models do the signaling: stalls with a man inside use the
+## OCCUPIED variant, and EMPTY/LOOT/FREE use the VACANT variant - so
+## "vacant" stalls are the gamble worth taking (gross, loot, or the prize).
 
 enum Outcome { HOSTILE, LOOT, FRIENDLY, EMPTY, FREE }
 
 signal opened(stall: Stall, outcome: Outcome)
 
-const TOILET_SCENE := preload("res://assets/toilet.glb")
+const OCC_CLOSED := preload("res://assets/stall_occupied_closed.glb")
+const OCC_OPEN := preload("res://assets/stall_occupied_open.glb")
+const VAC_CLOSED := preload("res://assets/stall_vacant_closed.glb")
+const VAC_OPEN := preload("res://assets/stall_vacant_open.glb")
 const MAN_SCENE := preload("res://assets/man_animated.glb")
 
-const WALL_COLOR := Color(0.16, 0.45, 0.42)
-const DOOR_COLOR := Color(0.12, 0.36, 0.34)
+## Baked export X centers per variant (stalls sat side by side in Blender),
+## measured from merged world AABBs.
+const MODEL_X_CENTER := {
+	"occ_closed": 3.060,
+	"occ_open": 6.689,
+	"vac_closed": -0.133,
+	"vac_open": -3.919,
+}
+## Distance from model origin to the door hinge plane (+Z in model space).
+const MODEL_FRONT_Z := 0.42
+## The toilet lid mesh, identified by its mesh AABB size signature.
+const LID_SIZE := Vector3(0.39523, 0.492031, 0.058429)
+
+const STALL_WIDTH := 1.29
+const STALL_DEPTH := 1.57
+const STALL_HEIGHT := 2.29
 
 var outcome := Outcome.EMPTY
 var is_open := false
-var indicator_lies := false
 
-var _door_pivot: Node3D
+var _model: Node3D = null
+var _door_collider: StaticBody3D
 var _occupant: Node3D = null
 
 
-func setup(p_outcome: Outcome, rng: RandomNumberGenerator) -> void:
+func setup(p_outcome: Outcome, _rng: RandomNumberGenerator) -> void:
 	outcome = p_outcome
-	indicator_lies = rng.randf() < 0.15
-	_build(rng)
+	_build_collision()
+	_mount_model(false)
+
+	# Indicator light above the stall, matching the model's sign.
+	var claims_occupied := _has_occupant()
+	var ind := OmniLight3D.new()
+	ind.light_color = Color(0.9, 0.15, 0.1) if claims_occupied else Color(0.15, 0.9, 0.3)
+	ind.light_energy = 0.5
+	ind.omni_range = 1.2
+	ind.position = Vector3(0, 2.1, -0.25)
+	add_child(ind)
 
 
 func knock() -> void:
 	if is_open:
 		return
 	is_open = true
-	var tw := create_tween()
-	tw.tween_property(_door_pivot, "rotation:y", deg_to_rad(-115.0), 0.35) \
-		.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	_door_collider.queue_free()
+	_mount_model(true)
+
+	if outcome == Outcome.HOSTILE or outcome == Outcome.FRIENDLY:
+		_seat_occupant()
+	if outcome == Outcome.FREE:
+		_bless_the_throne()
+
 	opened.emit(self, outcome)
+
+
+func _has_occupant() -> bool:
+	return outcome == Outcome.HOSTILE or outcome == Outcome.FRIENDLY
 
 
 ## World position just inside the stall (enemy spawn / win check).
 func interior_point() -> Vector3:
-	return to_global(Vector3(0, 0, 0.7))
+	return to_global(Vector3(0, 0, 0.6))
 
 
 ## Remove the sitting occupant (the manager replaces hostiles with live enemies).
@@ -56,88 +93,78 @@ func clear_occupant() -> void:
 		_occupant = null
 
 
-func _build(rng: RandomNumberGenerator) -> void:
+func _mount_model(open: bool) -> void:
+	if _model:
+		_model.queue_free()
+
+	var key: String
+	var scene: PackedScene
+	if _has_occupant():
+		key = "occ_open" if open else "occ_closed"
+		scene = OCC_OPEN if open else OCC_CLOSED
+	else:
+		key = "vac_open" if open else "vac_closed"
+		scene = VAC_OPEN if open else VAC_CLOSED
+
+	_model = Node3D.new()
+	_model.rotation.y = PI  # model front is +Z; our door faces -Z
+	_model.position.z = MODEL_FRONT_Z  # door hinge plane lands on local z=0
+	add_child(_model)
+
+	var inst: Node3D = scene.instantiate()
+	inst.position.x = -MODEL_X_CENTER[key]
+	_model.add_child(inst)
+
+
+func _seat_occupant() -> void:
+	_occupant = MAN_SCENE.instantiate()
+	_occupant.rotation.y = PI  # face the door
+	_occupant.position = Vector3(0, 0.35, 0.95)
+	add_child(_occupant)
+	var anims := _occupant.find_children("*", "AnimationPlayer", true, false)
+	if anims.size() > 0:
+		var ap: AnimationPlayer = anims[0]
+		if ap.has_animation("Sit"):
+			ap.play("Sit")
+			ap.advance(ap.get_animation("Sit").length - 0.02)
+
+
+## The free stall: golden light and a glowing lid (found by mesh signature).
+func _bless_the_throne() -> void:
+	var glow := OmniLight3D.new()
+	glow.light_color = Color(1.0, 0.85, 0.3)
+	glow.light_energy = 2.2
+	glow.omni_range = 2.8
+	glow.position = Vector3(0, 1.5, 1.0)
+	add_child(glow)
+
+	var gold := StandardMaterial3D.new()
+	gold.albedo_color = Color(1.0, 0.85, 0.3)
+	gold.emission_enabled = true
+	gold.emission = Color(1.0, 0.8, 0.2)
+	gold.emission_energy_multiplier = 1.5
+	for mi in _model.find_children("*", "MeshInstance3D", true, false):
+		if mi.mesh == null:
+			continue
+		var s: Vector3 = mi.mesh.get_aabb().size
+		if s.distance_to(LID_SIZE) < 0.03:
+			mi.material_override = gold
+
+
+func _build_collision() -> void:
 	var walls := StaticBody3D.new()
 	add_child(walls)
+	var half_w := STALL_WIDTH / 2.0
+	_coll_box(walls, Vector3(0.08, STALL_HEIGHT, STALL_DEPTH), Vector3(-half_w, STALL_HEIGHT / 2.0, STALL_DEPTH / 2.0))
+	_coll_box(walls, Vector3(0.08, STALL_HEIGHT, STALL_DEPTH), Vector3(half_w, STALL_HEIGHT / 2.0, STALL_DEPTH / 2.0))
+	_coll_box(walls, Vector3(STALL_WIDTH, STALL_HEIGHT, 0.08), Vector3(0, STALL_HEIGHT / 2.0, STALL_DEPTH))
 
-	_solid_box(walls, Vector3(2.1, 2.4, 0.1), Vector3(0, 1.2, 2.0), WALL_COLOR)    # back
-	_solid_box(walls, Vector3(0.1, 2.4, 2.0), Vector3(-1.0, 1.2, 1.0), WALL_COLOR) # left
-	_solid_box(walls, Vector3(0.1, 2.4, 2.0), Vector3(1.0, 1.2, 1.0), WALL_COLOR)  # right
-	# Front wall pieces so the stall is closed except for the doorway.
-	_solid_box(walls, Vector3(0.16, 2.4, 0.08), Vector3(-0.93, 1.2, 0), WALL_COLOR) # beside hinge
-	_solid_box(walls, Vector3(0.26, 2.4, 0.08), Vector3(0.88, 1.2, 0), WALL_COLOR)  # beside latch
-	_solid_box(walls, Vector3(2.1, 0.4, 0.08), Vector3(0, 2.2, 0), WALL_COLOR)      # lintel
-
-	# Door on a pivot so it swings open toward the corridor.
-	_door_pivot = Node3D.new()
-	_door_pivot.position = Vector3(-0.85, 0, 0)
-	add_child(_door_pivot)
-
-	var door_body := StaticBody3D.new()
-	_door_pivot.add_child(door_body)
-	_solid_box(door_body, Vector3(1.6, 1.7, 0.07), Vector3(0.85, 1.15, 0), DOOR_COLOR)
-
-	# Indicator light above the door.
-	var shows_occupied := outcome == Outcome.HOSTILE or outcome == Outcome.FRIENDLY
-	if indicator_lies:
-		shows_occupied = not shows_occupied
-	var ind := MeshInstance3D.new()
-	var ind_mesh := BoxMesh.new()
-	ind_mesh.size = Vector3(0.18, 0.18, 0.06)
-	ind.mesh = ind_mesh
-	ind.position = Vector3(0, 2.15, -0.06)
-	var ind_mat := StandardMaterial3D.new()
-	var ind_color := Color(0.9, 0.15, 0.1) if shows_occupied else Color(0.15, 0.9, 0.3)
-	ind_mat.albedo_color = ind_color
-	ind_mat.emission_enabled = true
-	ind_mat.emission = ind_color
-	ind_mat.emission_energy_multiplier = 2.0
-	ind.material_override = ind_mat
-	add_child(ind)
-
-	# The porcelain itself (model AABB is 2x2x2 centered at origin).
-	var toilet: Node3D = TOILET_SCENE.instantiate()
-	var s := 0.45
-	toilet.scale = Vector3(s, s, s)
-	toilet.position = Vector3(0, s, 1.55)
-	toilet.rotation.y = PI  # face the door
-	add_child(toilet)
-
-	# The occupant, doing what one does in an occupied stall.
-	if outcome == Outcome.HOSTILE or outcome == Outcome.FRIENDLY:
-		_occupant = MAN_SCENE.instantiate()
-		_occupant.rotation.y = PI  # face the door
-		_occupant.position = Vector3(0, 0.32, 1.15)
-		add_child(_occupant)
-		var anims := _occupant.find_children("*", "AnimationPlayer", true, false)
-		if anims.size() > 0:
-			var ap: AnimationPlayer = anims[0]
-			if ap.has_animation("Sit"):
-				ap.play("Sit")
-				ap.advance(ap.get_animation("Sit").length - 0.02)
-
-	if outcome == Outcome.FREE:
-		# Golden halo so the prize reads instantly when the door opens.
-		var glow := OmniLight3D.new()
-		glow.light_color = Color(1.0, 0.85, 0.3)
-		glow.light_energy = 2.0
-		glow.omni_range = 2.5
-		glow.position = Vector3(0, 1.4, 1.4)
-		add_child(glow)
+	_door_collider = StaticBody3D.new()
+	add_child(_door_collider)
+	_coll_box(_door_collider, Vector3(STALL_WIDTH, STALL_HEIGHT, 0.08), Vector3(0, STALL_HEIGHT / 2.0, 0))
 
 
-func _solid_box(body: StaticBody3D, size: Vector3, pos: Vector3, color: Color) -> void:
-	var mesh_inst := MeshInstance3D.new()
-	var mesh := BoxMesh.new()
-	mesh.size = size
-	mesh_inst.mesh = mesh
-	mesh_inst.position = pos
-	var mat := StandardMaterial3D.new()
-	mat.albedo_color = color
-	mat.roughness = 0.4
-	mesh_inst.material_override = mat
-	body.add_child(mesh_inst)
-
+func _coll_box(body: StaticBody3D, size: Vector3, pos: Vector3) -> void:
 	var col := CollisionShape3D.new()
 	var shape := BoxShape3D.new()
 	shape.size = size
