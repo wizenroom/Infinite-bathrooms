@@ -1,13 +1,16 @@
 class_name ProtoEnemy
 extends CharacterBody3D
-## Melee occupant: chases the player, telegraphs with a wind-up,
-## then lunges. Two fist hits (one plunger hit) to kill.
+## Melee occupant: chases the player, telegraphs with the punch wind-up
+## animation, then lunges. Two fist hits (one plunger hit) to kill.
+
+const MAN_SCENE := preload("res://assets/man_animated.glb")
 
 const SPEED := 3.2
 const AGGRO_RANGE := 9.0
 const WINDUP_TIME := 0.5
 const STRIKE_TIME := 0.25
 const RECOVER_TIME := 0.6
+const ATTACK_ANIM_TIME := WINDUP_TIME + STRIKE_TIME
 
 var hp := 2
 
@@ -16,8 +19,10 @@ var _timer := 0.0
 var _has_struck := false
 var _knockback := Vector3.ZERO
 var _strike_dir := Vector3.ZERO
-var _mat: StandardMaterial3D
-var _visual: MeshInstance3D
+var _visual: Node3D
+var _anim: AnimationPlayer
+var _meshes: Array = []
+var _flash_mat: StandardMaterial3D
 var _player: Node3D
 
 
@@ -32,16 +37,33 @@ func _ready() -> void:
 	col.position.y = 0.85
 	add_child(col)
 
-	_visual = MeshInstance3D.new()
-	var mesh := CapsuleMesh.new()
-	mesh.height = 1.7
-	mesh.radius = 0.38
-	_visual.mesh = mesh
-	_visual.position.y = 0.85
-	_mat = StandardMaterial3D.new()
-	_mat.albedo_color = Color(0.75, 0.2, 0.15)
-	_visual.material_override = _mat
+	_visual = Node3D.new()
 	add_child(_visual)
+
+	var model := MAN_SCENE.instantiate()
+	# glTF forward is +Z, Godot forward is -Z; flip so he runs face-first.
+	model.rotation.y = PI
+	_visual.add_child(model)
+
+	_meshes = model.find_children("*", "MeshInstance3D", true, false)
+	_flash_mat = StandardMaterial3D.new()
+	_flash_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	_flash_mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+	_flash_mat.albedo_color = Color(0.9, 0.9, 0.9)
+
+	var anims := model.find_children("*", "AnimationPlayer", true, false)
+	if anims.size() > 0:
+		_anim = anims[0]
+		for anim_name in ["Walk", "Run", "Sit"]:
+			if _anim.has_animation(anim_name):
+				_anim.get_animation(anim_name).loop_mode = Animation.LOOP_LINEAR
+		_play("Run")
+
+
+func _play(anim_name: String, speed := 1.0) -> void:
+	if _anim and _anim.has_animation(anim_name):
+		if _anim.current_animation != anim_name or not _anim.is_playing():
+			_anim.play(anim_name, 0.15, speed)
 
 
 func _physics_process(delta: float) -> void:
@@ -63,13 +85,17 @@ func _physics_process(delta: float) -> void:
 				# Out of range: loiter menacingly instead of chasing.
 				velocity.x = _knockback.x
 				velocity.z = _knockback.z
+				_play("Walk", 0.3)
 			else:
 				velocity.x = dir.x * SPEED + _knockback.x
 				velocity.z = dir.z * SPEED + _knockback.z
+				_play("Run")
 			if dist < 1.9:
 				_state = "windup"
 				_timer = WINDUP_TIME
-				_mat.albedo_color = Color(1.0, 0.55, 0.1)
+				if _anim and _anim.has_animation("Attack_Punch"):
+					var punch_speed: float = _anim.get_animation("Attack_Punch").length / ATTACK_ANIM_TIME
+					_anim.play("Attack_Punch", 0.05, punch_speed)
 		"windup":
 			velocity.x = _knockback.x
 			velocity.z = _knockback.z
@@ -79,7 +105,6 @@ func _physics_process(delta: float) -> void:
 				_timer = STRIKE_TIME
 				_has_struck = false
 				_strike_dir = dir
-				_mat.albedo_color = Color(1.0, 0.15, 0.1)
 		"strike":
 			velocity.x = _strike_dir.x * 9.0 + _knockback.x
 			velocity.z = _strike_dir.z * 9.0 + _knockback.z
@@ -90,14 +115,12 @@ func _physics_process(delta: float) -> void:
 			if _timer <= 0.0:
 				_state = "recover"
 				_timer = RECOVER_TIME
-				_mat.albedo_color = Color(0.55, 0.25, 0.3)
 		"recover":
 			velocity.x = _knockback.x
 			velocity.z = _knockback.z
 			_timer -= delta
 			if _timer <= 0.0:
 				_state = "chase"
-				_mat.albedo_color = Color(0.75, 0.2, 0.15)
 
 	_knockback = _knockback.lerp(Vector3.ZERO, 8.0 * delta)
 
@@ -108,10 +131,13 @@ func _physics_process(delta: float) -> void:
 
 	move_and_slide()
 
-	if velocity.length() > 0.5:
-		var flat := Vector3(velocity.x, 0, velocity.z)
-		if flat.length() > 0.1:
-			_visual.rotation.y = atan2(-flat.x, -flat.z) - rotation.y
+	var face := Vector3(velocity.x, 0, velocity.z)
+	if _state == "windup" or _state == "strike":
+		face = _player.global_position - global_position
+		face.y = 0
+	if face.length() > 0.3:
+		var d := face.normalized()
+		_visual.rotation.y = atan2(-d.x, -d.z)
 
 
 func take_hit(dmg: int, from_dir: Vector3) -> void:
@@ -119,9 +145,14 @@ func take_hit(dmg: int, from_dir: Vector3) -> void:
 		return
 	hp -= dmg
 	_knockback = from_dir * 9.0
-	var flash := create_tween()
-	flash.tween_property(_mat, "albedo_color", Color.WHITE, 0.05)
-	flash.tween_property(_mat, "albedo_color", Color(0.75, 0.2, 0.15), 0.15)
+	for mi in _meshes:
+		mi.material_overlay = _flash_mat
+	get_tree().create_timer(0.09).timeout.connect(func() -> void:
+		if is_instance_valid(self):
+			for mi in _meshes:
+				if is_instance_valid(mi):
+					mi.material_overlay = null
+	)
 	if hp <= 0:
 		_die()
 
@@ -129,10 +160,13 @@ func take_hit(dmg: int, from_dir: Vector3) -> void:
 func _die() -> void:
 	_state = "dead"
 	remove_from_group("enemies")
+	if _anim:
+		_anim.pause()
 	for child in get_children():
 		if child is CollisionShape3D:
 			child.set_deferred("disabled", true)
 	var tw := create_tween()
-	tw.tween_property(_visual, "scale", Vector3(1.4, 0.08, 1.4), 0.25).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_IN)
-	tw.tween_interval(0.4)
+	tw.tween_property(_visual, "rotation:x", -PI / 2.0, 0.3).set_trans(Tween.TRANS_BOUNCE).set_ease(Tween.EASE_OUT)
+	tw.tween_interval(0.5)
+	tw.tween_property(_visual, "position:y", -1.2, 0.6).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
 	tw.tween_callback(queue_free)

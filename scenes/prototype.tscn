@@ -1,4 +1,4 @@
-[gd_scene load_steps=2 format=3 uid="uid://bproto000000001"]
+[gd_scene format=3 uid="uid://cgd4fg6gc2bee"]
 
 [ext_resource type="Script" path="res://scripts/proto/bathroom.gd" id="1_bathroom"]
 

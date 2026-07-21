@@ -13,6 +13,8 @@ enum Outcome { HOSTILE, LOOT, FRIENDLY, EMPTY, FREE }
 
 signal opened(stall: Stall, outcome: Outcome)
 
+const TOILET_SCENE := preload("res://assets/toilet.glb")
+
 const WALL_COLOR := Color(0.16, 0.45, 0.42)
 const DOOR_COLOR := Color(0.12, 0.36, 0.34)
 
@@ -92,22 +94,22 @@ func _build(rng: RandomNumberGenerator) -> void:
 			foot.material_override = foot_mat
 			add_child(foot)
 
-	# The porcelain itself.
-	var toilet := MeshInstance3D.new()
-	var toilet_mesh := BoxMesh.new()
-	toilet_mesh.size = Vector3(0.7, 0.8, 0.5)
-	toilet.mesh = toilet_mesh
-	toilet.position = Vector3(0, 0.4, 1.55)
-	var toilet_mat := StandardMaterial3D.new()
-	if outcome == Outcome.FREE:
-		toilet_mat.albedo_color = Color(1.0, 0.9, 0.5)
-		toilet_mat.emission_enabled = true
-		toilet_mat.emission = Color(1.0, 0.85, 0.3)
-		toilet_mat.emission_energy_multiplier = 1.2
-	else:
-		toilet_mat.albedo_color = Color(0.92, 0.92, 0.95)
-	toilet.material_override = toilet_mat
+	# The porcelain itself (model AABB is 2x2x2 centered at origin).
+	var toilet: Node3D = TOILET_SCENE.instantiate()
+	var s := 0.45
+	toilet.scale = Vector3(s, s, s)
+	toilet.position = Vector3(0, s, 1.5)
+	toilet.rotation.y = PI  # face the door
 	add_child(toilet)
+
+	if outcome == Outcome.FREE:
+		# Golden halo so the prize reads instantly when the door opens.
+		var glow := OmniLight3D.new()
+		glow.light_color = Color(1.0, 0.85, 0.3)
+		glow.light_energy = 2.0
+		glow.omni_range = 2.5
+		glow.position = Vector3(0, 1.4, 1.4)
+		add_child(glow)
 
 
 func _solid_box(body: StaticBody3D, size: Vector3, pos: Vector3, color: Color) -> void:

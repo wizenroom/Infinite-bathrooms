@@ -4,6 +4,8 @@ extends Node3D
 ##
 ## Controls: WASD move, mouse aim, LMB/Space swing, E knock, R restart (after end).
 
+const PLANT_SCENE := preload("res://assets/plant.glb")
+
 const STALL_SPACING := 2.4
 const STALL_X := 3.4
 const GEN_AHEAD := 55.0
@@ -101,6 +103,15 @@ func _spawn_stall_pair(z: float) -> void:
 	# Occasional roamer in the corridor so combat happens between knocks too.
 	if stall_count > 8 and rng.randf() < 0.2:
 		_spawn_enemy(Vector3(rng.randf_range(-1.8, 1.8), 0, z))
+
+	# Decorative plant in the gap between stall pairs now and then.
+	if rng.randf() < 0.12:
+		var plant: Node3D = PLANT_SCENE.instantiate()
+		var ps := rng.randf_range(0.55, 0.75)
+		plant.scale = Vector3(ps, ps, ps)
+		plant.position = Vector3([-2.7, 2.7][rng.randi_range(0, 1)], 0.32 * ps, z + STALL_SPACING * 0.5)
+		plant.rotation.y = rng.randf_range(0, TAU)
+		add_child(plant)
 
 
 func _roll_outcome() -> Stall.Outcome:

@@ -7,6 +7,8 @@ extends CharacterBody3D
 signal died
 signal hit
 
+const PLUNGER_SCENE := preload("res://assets/plunger.glb")
+
 const BASE_SPEED := 5.0
 const PANIC_SPEED := 2.4
 const ATTACK_COOLDOWN := 0.45
@@ -165,6 +167,15 @@ func take_hit(from_dir: Vector3) -> void:
 
 
 func give_plunger() -> void:
+	if has_plunger:
+		return
 	has_plunger = true
 	attack_damage = 2
 	attack_range = 2.7
+
+	# Wield it: held out to the right, tipped forward like a sword.
+	var plunger: Node3D = PLUNGER_SCENE.instantiate()
+	plunger.scale = Vector3(1.6, 1.6, 1.6)
+	plunger.position = Vector3(0.55, 1.0, -0.25)
+	plunger.rotation_degrees = Vector3(-65, 0, 0)
+	_visual.add_child(plunger)
