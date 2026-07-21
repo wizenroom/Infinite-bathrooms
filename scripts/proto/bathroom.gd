@@ -1,21 +1,27 @@
 extends Node3D
 ## Game manager: generates the infinite bathroom corridor ahead of the
 ## player, resolves knock outcomes, and runs HUD + win/lose.
+## Lives inside the low-res SubViewport; the HUD is added to hud_parent
+## (outside the viewport) so text stays crisp.
 ##
-## Controls: WASD move, mouse aim, LMB/Space swing, E knock, R restart (after end).
+## Controls: WASD move, mouse look, LMB/Space swing, E knock, R restart (after end).
 
 const PLANT_SCENE := preload("res://assets/plant.glb")
 
 const STALL_SPACING := 2.4
 const STALL_X := 3.4
-const GEN_AHEAD := 55.0
-const KNOCK_RANGE := 2.8
+const GEN_AHEAD := 45.0
+const KNOCK_RANGE := 3.0
+const LIGHT_EVERY_N_PAIRS := 3
 
 # Knock outcome weights (FREE is placed deterministically, not rolled).
 const W_HOSTILE := 45
 const W_LOOT := 20
 const W_FRIENDLY := 15
 const W_EMPTY := 20
+
+## Set by game_root before this node enters the tree.
+var hud_parent: Node = null
 
 var player: ProtoPlayer
 var stalls: Array[Stall] = []
@@ -24,6 +30,7 @@ var free_stall_index := 0
 var free_stall: Stall = null
 var _free_placed := false
 var next_z := -4.0
+var pair_count := 0
 var game_ended := false
 var _warn_cooldown := 0.0
 var rng := RandomNumberGenerator.new()
@@ -49,6 +56,19 @@ func _ready() -> void:
 	player.hit.connect(_on_player_hit)
 
 	_show_message("Every stall is OCCUPIED... except one. Find it. (E = knock)", 4.5)
+
+	# Dev aid: PROTO_DEBUG=knock auto-opens the first hostile stall so the
+	# interior can be checked without playing up to it.
+	if OS.get_environment("PROTO_DEBUG") == "knock":
+		get_tree().create_timer(1.5).timeout.connect(func() -> void:
+			for s in stalls:
+				if s.outcome == Stall.Outcome.HOSTILE and not s.is_open:
+					player.global_position = s.global_position + s.global_transform.basis.z * -2.0
+					player.look_at(s.global_position + Vector3(0, 1.2, 0))
+					player.rotation.x = 0
+					s.knock()
+					break
+		)
 
 
 func _process(delta: float) -> void:
@@ -76,13 +96,17 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func _try_knock() -> void:
+	# Nearest closed stall the player is roughly looking toward.
+	var f := player.facing()
 	var best: Stall = null
 	var best_dist := KNOCK_RANGE
 	for s in stalls:
 		if s.is_open:
 			continue
-		var d := s.global_position.distance_to(player.global_position)
-		if d < best_dist:
+		var to_s := s.global_position - player.global_position
+		to_s.y = 0
+		var d := to_s.length()
+		if d < best_dist and f.dot(to_s.normalized()) > 0.25:
 			best_dist = d
 			best = s
 	if best:
@@ -90,26 +114,49 @@ func _try_knock() -> void:
 
 
 func _spawn_stall_pair(z: float) -> void:
+	pair_count += 1
 	for side in [-1, 1]:
 		var stall := Stall.new()
 		add_child(stall)
 		stall.position = Vector3(side * STALL_X, 0, z)
-		stall.rotation.y = -side * PI / 2.0  # door faces the corridor
+		# Stall door faces local -Z; rotate so it faces the corridor center.
+		stall.rotation.y = side * PI / 2.0
 		stall.setup(_roll_outcome(), rng)
 		stall.opened.connect(_on_stall_opened)
 		stalls.append(stall)
 		stall_count += 1
 
+	# Flickering fluorescent every few pairs.
+	if pair_count % LIGHT_EVERY_N_PAIRS == 0:
+		var fixture := MeshInstance3D.new()
+		var tube := BoxMesh.new()
+		tube.size = Vector3(0.15, 0.06, 1.4)
+		fixture.mesh = tube
+		var tube_mat := StandardMaterial3D.new()
+		tube_mat.albedo_color = Color(0.9, 0.95, 0.9)
+		tube_mat.emission_enabled = true
+		tube_mat.emission = Color(0.8, 0.9, 0.8)
+		fixture.material_override = tube_mat
+		fixture.position = Vector3(0, 2.55, z)
+		add_child(fixture)
+
+		var light := FlickerLight.new()
+		light.light_color = Color(0.85, 0.95, 0.85)
+		light.base_energy = 1.4
+		light.omni_range = 9.0
+		light.position = Vector3(0, 2.3, z)
+		add_child(light)
+
 	# Occasional roamer in the corridor so combat happens between knocks too.
-	if stall_count > 8 and rng.randf() < 0.2:
-		_spawn_enemy(Vector3(rng.randf_range(-1.8, 1.8), 0, z))
+	if stall_count > 8 and rng.randf() < 0.15:
+		_spawn_enemy(Vector3(rng.randf_range(-1.6, 1.6), 0, z))
 
 	# Decorative plant in the gap between stall pairs now and then.
 	if rng.randf() < 0.12:
 		var plant: Node3D = PLANT_SCENE.instantiate()
-		var ps := rng.randf_range(0.55, 0.75)
+		var ps := rng.randf_range(0.5, 0.7)
 		plant.scale = Vector3(ps, ps, ps)
-		plant.position = Vector3([-2.7, 2.7][rng.randi_range(0, 1)], 0.32 * ps, z + STALL_SPACING * 0.5)
+		plant.position = Vector3([-2.75, 2.75][rng.randi_range(0, 1)], 0.32 * ps, z + STALL_SPACING * 0.5)
 		plant.rotation.y = rng.randf_range(0, TAU)
 		add_child(plant)
 
@@ -133,8 +180,10 @@ func _roll_outcome() -> Stall.Outcome:
 func _on_stall_opened(stall: Stall, outcome: Stall.Outcome) -> void:
 	match outcome:
 		Stall.Outcome.HOSTILE:
-			_show_message("OCCUPIED!!")
-			_spawn_enemy(stall.to_global(Vector3(0, 0, -1.2)))
+			_show_message("OCCUPIED!! He's getting up!!")
+			# The sitting man becomes a live, furious enemy.
+			stall.clear_occupant()
+			_spawn_enemy(stall.interior_point())
 		Stall.Outcome.LOOT:
 			if not player.has_plunger and rng.randf() < 0.4:
 				player.give_plunger()
@@ -143,9 +192,10 @@ func _on_stall_opened(stall: Stall, outcome: Stall.Outcome) -> void:
 				player.urgency = maxf(0.0, player.urgency - 18.0)
 				_show_message("Empty... a moment of calm. (urgency down)")
 		Stall.Outcome.FRIENDLY:
+			# He stays seated. He's busy. But he's kind.
 			if not player.has_plunger:
 				player.give_plunger()
-				_show_message("A kind stranger hands you a PLUNGER through the gap.")
+				_show_message("\"Take my plunger. Godspeed.\" (he does not get up)")
 			else:
 				player.urgency = maxf(0.0, player.urgency - 12.0)
 				_show_message("\"Good luck out there.\" (urgency down)")
@@ -154,16 +204,17 @@ func _on_stall_opened(stall: Stall, outcome: Stall.Outcome) -> void:
 		Stall.Outcome.FREE:
 			free_stall = stall
 			_show_message("THE FREE STALL! But the queue jumpers arrive...", 4.0)
+			# Guards burst out of the neighboring corridor, not out of walls.
+			var z := stall.global_position.z
 			for i in 3:
-				var offset := Vector3(rng.randf_range(-1.0, 1.0), 0, -1.5 - i * 1.2)
-				_spawn_enemy(stall.to_global(offset))
+				_spawn_enemy(Vector3(rng.randf_range(-1.5, 1.5), 0, z + [-3.0, 3.0, -5.5][i]))
 
 
 func _check_win() -> void:
 	if not free_stall or not free_stall.is_open:
 		return
 	var dist := player.global_position.distance_to(free_stall.interior_point())
-	if dist > 1.3:
+	if dist > 1.4:
 		return
 	if get_tree().get_nodes_in_group("enemies").size() > 0:
 		if _warn_cooldown <= 0.0:
@@ -193,6 +244,7 @@ func _end_game(won: bool) -> void:
 	if game_ended:
 		return
 	game_ended = true
+	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	_overlay.visible = true
 	if won:
 		_overlay_label.text = "RELIEF AT LAST.\n\nYou found the one free stall.\n\nPress R to queue again"
@@ -206,30 +258,25 @@ func _end_game(won: bool) -> void:
 func _build_environment() -> void:
 	var env := Environment.new()
 	env.background_mode = Environment.BG_COLOR
-	env.background_color = Color(0.05, 0.07, 0.08)
+	env.background_color = Color(0.01, 0.015, 0.02)
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	env.ambient_light_color = Color(0.7, 0.75, 0.8)
-	env.ambient_light_energy = 0.9
+	env.ambient_light_color = Color(0.5, 0.55, 0.58)
+	env.ambient_light_energy = 0.35
 	env.fog_enabled = true
-	env.fog_light_color = Color(0.12, 0.16, 0.18)
-	env.fog_density = 0.03
+	env.fog_light_color = Color(0.03, 0.045, 0.05)
+	env.fog_density = 0.06
 	var world_env := WorldEnvironment.new()
 	world_env.environment = env
 	add_child(world_env)
 
-	var light := DirectionalLight3D.new()
-	light.rotation_degrees = Vector3(-55, -30, 0)
-	light.light_energy = 0.8
-	light.shadow_enabled = true
-	add_child(light)
-
-	# One long floor + corridor bounds. 1000m of bathroom is "infinite enough".
+	# One long box world. 1000m of bathroom is "infinite enough".
 	var world := StaticBody3D.new()
 	add_child(world)
-	_world_box(world, Vector3(13, 1, 1000), Vector3(0, -0.5, -480), Color(0.75, 0.78, 0.8))   # floor
-	_world_box(world, Vector3(0.4, 3.2, 1000), Vector3(-5.7, 1.6, -480), Color(0.82, 0.78, 0.68)) # left wall
-	_world_box(world, Vector3(0.4, 3.2, 1000), Vector3(5.7, 1.6, -480), Color(0.82, 0.78, 0.68))  # right wall
-	_world_box(world, Vector3(13, 3.2, 0.4), Vector3(0, 1.6, 3.0), Color(0.82, 0.78, 0.68))       # back wall
+	_world_box(world, Vector3(13, 1, 1000), Vector3(0, -0.5, -480), Color(0.55, 0.58, 0.6))       # floor
+	_world_box(world, Vector3(13, 1, 1000), Vector3(0, 3.1, -480), Color(0.35, 0.36, 0.38))       # ceiling
+	_world_box(world, Vector3(0.4, 3.4, 1000), Vector3(-5.7, 1.6, -480), Color(0.5, 0.47, 0.4))   # left wall
+	_world_box(world, Vector3(0.4, 3.4, 1000), Vector3(5.7, 1.6, -480), Color(0.5, 0.47, 0.4))    # right wall
+	_world_box(world, Vector3(13, 3.4, 0.4), Vector3(0, 1.6, 3.0), Color(0.5, 0.47, 0.4))         # back wall
 
 
 func _world_box(body: StaticBody3D, size: Vector3, pos: Vector3, color: Color) -> void:
@@ -240,6 +287,7 @@ func _world_box(body: StaticBody3D, size: Vector3, pos: Vector3, color: Color) -
 	mesh_inst.position = pos
 	var mat := StandardMaterial3D.new()
 	mat.albedo_color = color
+	mat.roughness = 0.55
 	mesh_inst.material_override = mat
 	body.add_child(mesh_inst)
 
@@ -253,7 +301,8 @@ func _world_box(body: StaticBody3D, size: Vector3, pos: Vector3, color: Color) -
 
 func _build_hud() -> void:
 	var hud := CanvasLayer.new()
-	add_child(hud)
+	var host: Node = hud_parent if hud_parent else self
+	host.add_child.call_deferred(hud)
 
 	_bar = ProgressBar.new()
 	_bar.min_value = 0
@@ -268,6 +317,16 @@ func _build_hud() -> void:
 	bar_label.position = Vector2(20, 22)
 	hud.add_child(bar_label)
 
+	# Crosshair dot.
+	var cross := Label.new()
+	cross.set_anchors_preset(Control.PRESET_FULL_RECT)
+	cross.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	cross.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	cross.text = "·"
+	cross.add_theme_font_size_override("font_size", 34)
+	cross.modulate = Color(1, 1, 1, 0.7)
+	hud.add_child(cross)
+
 	_msg = Label.new()
 	_msg.set_anchors_preset(Control.PRESET_TOP_WIDE)
 	_msg.offset_top = 64
@@ -280,7 +339,7 @@ func _build_hud() -> void:
 	hint.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
 	hint.offset_top = -44
 	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	hint.text = "WASD move  ·  mouse aim  ·  LMB / Space swing  ·  E knock"
+	hint.text = "WASD move  ·  mouse look  ·  LMB / Space swing  ·  E knock"
 	hint.add_theme_font_size_override("font_size", 16)
 	hint.modulate = Color(1, 1, 1, 0.55)
 	hud.add_child(hint)

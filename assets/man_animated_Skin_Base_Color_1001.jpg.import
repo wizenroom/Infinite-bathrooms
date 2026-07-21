@@ -3,9 +3,10 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://bfpi1iylqrf01"
-path="res://.godot/imported/man_animated_Skin_Base_Color_1001.jpg-d13aed2e5a95b83274ffe6568f3d6478.ctex"
+path.s3tc="res://.godot/imported/man_animated_Skin_Base_Color_1001.jpg-d13aed2e5a95b83274ffe6568f3d6478.s3tc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "f08b6465be24b67a9a7b68c9a6d18eb5"
@@ -14,11 +15,11 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/man_animated_Skin_Base_Color_1001.jpg"
-dest_files=["res://.godot/imported/man_animated_Skin_Base_Color_1001.jpg-d13aed2e5a95b83274ffe6568f3d6478.ctex"]
+dest_files=["res://.godot/imported/man_animated_Skin_Base_Color_1001.jpg-d13aed2e5a95b83274ffe6568f3d6478.s3tc.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0
@@ -40,4 +41,4 @@ process/normal_map_invert_y=false
 process/hdr_as_srgb=false
 process/hdr_clamp_exposure=false
 process/size_limit=0
-detect_3d/compress_to=1
+detect_3d/compress_to=0

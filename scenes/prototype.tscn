@@ -1,6 +1,6 @@
-[gd_scene format=3 uid="uid://cgd4fg6gc2bee"]
+[gd_scene load_steps=2 format=3 uid="uid://cgd4fg6gc2bee"]
 
-[ext_resource type="Script" path="res://scripts/proto/bathroom.gd" id="1_bathroom"]
+[ext_resource type="Script" path="res://scripts/proto/game_root.gd" id="1_root"]
 
-[node name="Prototype" type="Node3D"]
-script = ExtResource("1_bathroom")
+[node name="Prototype" type="Node"]
+script = ExtResource("1_root")

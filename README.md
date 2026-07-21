@@ -14,9 +14,10 @@ stall before the urgency meter fills.
 | Input | Action |
 | --- | --- |
 | WASD | Move |
-| Mouse | Aim |
+| Mouse | Look (first person) |
 | LMB / Space | Melee swing |
-| E | Knock on nearest stall door |
+| E | Knock on the stall you're facing |
+| Esc | Release mouse |
 | R | Restart (after win/lose) |
 
 Reading the bathroom: **red indicator light** usually means a hostile occupant,
