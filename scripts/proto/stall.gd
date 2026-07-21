@@ -21,6 +21,12 @@ const OCC_OPEN := preload("res://assets/stall_occupied_open.glb")
 const VAC_CLOSED := preload("res://assets/stall_vacant_closed.glb")
 const VAC_OPEN := preload("res://assets/stall_vacant_open.glb")
 const MAN_SCENE := preload("res://assets/man_animated.glb")
+const LIGHT_OPEN := preload("res://assets/light_open.glb")
+const LIGHT_CLOSED := preload("res://assets/light_closed.glb")
+
+## Baked AABB centers of the sign-light models (cancelled at mount time).
+const LIGHT_OPEN_CENTER := Vector3(0.0, 0.2055, -0.0305)
+const LIGHT_CLOSED_CENTER := Vector3(0.0, 0.2055, -0.6382)
 
 ## Baked export X centers per variant (stalls sat side by side in Blender),
 ## measured from merged world AABBs.
@@ -52,8 +58,18 @@ func setup(p_outcome: Outcome, _rng: RandomNumberGenerator) -> void:
 	_build_collision()
 	_mount_model(false)
 
-	# Indicator light above the stall, matching the model's sign.
+	# Sign light above the door (OPEN/CLOSED model) plus a matching glow.
 	var claims_occupied := _has_occupant()
+	var sign_scene: PackedScene = LIGHT_CLOSED if claims_occupied else LIGHT_OPEN
+	var sign_center: Vector3 = LIGHT_CLOSED_CENTER if claims_occupied else LIGHT_OPEN_CENTER
+	var sign_wrap := Node3D.new()
+	sign_wrap.position = Vector3(0, STALL_HEIGHT + 0.18, -0.06)
+	sign_wrap.scale = Vector3(0.45, 0.45, 0.45)
+	add_child(sign_wrap)
+	var sign_inst: Node3D = sign_scene.instantiate()
+	sign_inst.position = -sign_center
+	sign_wrap.add_child(sign_inst)
+
 	var ind := OmniLight3D.new()
 	ind.light_color = Color(0.9, 0.15, 0.1) if claims_occupied else Color(0.15, 0.9, 0.3)
 	ind.light_energy = 0.5

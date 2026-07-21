@@ -10,11 +10,13 @@ $src = @'
 using System;
 using System.Runtime.InteropServices;
 using System.Drawing;
-public class WinCap {
+public class WinCap2 {
   [DllImport("user32.dll")] public static extern bool PrintWindow(IntPtr hwnd, IntPtr hdc, uint flags);
   [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr hwnd, out RECT rect);
+  [DllImport("user32.dll")] public static extern bool SetProcessDPIAware();
   public struct RECT { public int Left, Top, Right, Bottom; }
   public static void Capture(IntPtr hwnd, string path) {
+    SetProcessDPIAware();  // physical pixels, otherwise the capture gets cropped
     RECT r; GetWindowRect(hwnd, out r);
     int w = r.Right - r.Left, h = r.Bottom - r.Top;
     if (w <= 0 || h <= 0) throw new Exception("bad rect");
@@ -29,11 +31,12 @@ public class WinCap {
   }
 }
 '@
-if (-not ([System.Management.Automation.PSTypeName]'WinCap').Type) {
+if (-not ([System.Management.Automation.PSTypeName]'WinCap2').Type) {
     Add-Type -TypeDefinition $src -ReferencedAssemblies System.Drawing
 }
 
-if ($DebugMode) { $env:PROTO_DEBUG = $DebugMode }
+# Always assign so a value from a previous run in the same shell can't leak in.
+$env:PROTO_DEBUG = $DebugMode
 $godot = "C:\Users\lenovo\Downloads\Godot_v4.7-stable_win64.exe\Godot_v4.7-stable_win64.exe"
 $proj = "C:\Users\lenovo\Projects\gmtk-terragen"
 $p = Start-Process -FilePath $godot -ArgumentList '--path', $proj, '--resolution', '1280x720' -PassThru
@@ -45,10 +48,10 @@ foreach ($d in $Delays) {
     $elapsed = $d
     $proc = Get-Process -Id $p.Id -ErrorAction SilentlyContinue
     if ($proc) {
-        [WinCap]::Capture($proc.MainWindowHandle, "$proj\${Prefix}_$i.png")
+        [WinCap2]::Capture($proc.MainWindowHandle, "$proj\${Prefix}_$i.png")
     }
     $i++
 }
 Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue
-if ($DebugMode) { $env:PROTO_DEBUG = "" }
+$env:PROTO_DEBUG = ""
 Write-Output "captured $($Delays.Count) frame(s)"

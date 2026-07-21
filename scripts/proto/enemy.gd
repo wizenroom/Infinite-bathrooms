@@ -1,18 +1,18 @@
 class_name ProtoEnemy
 extends CharacterBody3D
 ## Melee occupant: chases the player, telegraphs with the punch wind-up
-## animation, then lunges. Two fist hits (one plunger hit) to kill.
+## animation, then lunges. Three fist hits (two plunger hits) to kill.
 
 const MAN_SCENE := preload("res://assets/man_animated.glb")
 
-const SPEED := 3.2
-const AGGRO_RANGE := 9.0
-const WINDUP_TIME := 0.5
+const SPEED := 3.7
+const AGGRO_RANGE := 11.0
+const WINDUP_TIME := 0.4
 const STRIKE_TIME := 0.25
-const RECOVER_TIME := 0.6
+const RECOVER_TIME := 0.5
 const ATTACK_ANIM_TIME := WINDUP_TIME + STRIKE_TIME
 
-var hp := 2
+var hp := 3
 
 var _state := "chase"
 var _timer := 0.0

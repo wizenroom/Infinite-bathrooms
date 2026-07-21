@@ -9,13 +9,23 @@ extends Node3D
 const PLANT_SCENE := preload("res://assets/plant.glb")
 const FLOOR_TILE := preload("res://assets/floor_tile.glb")
 const CEILING_TILE := preload("res://assets/ceiling_tile.glb")
+const WALL_PANEL := preload("res://assets/wall.glb")
 
-## The tile mesh sits at a baked offset in its GLB; cancel it out.
+## The tile/wall meshes sit at a baked offset in their GLBs; cancel it out.
 const TILE_BAKED_CENTER := Vector3(-15.24463, -1.17534, 0.300203)
 const TILE_SIZE := 2.0
 const CEILING_Y := 2.8
 ## Stall depth is 1.57 from the door plane at x=3.4, so backs end at 4.97.
 const WALL_X := 5.17
+
+## Corridor props: scene, baked offset to cancel (XZ center, Y bottom), scale.
+const PROP_DEFS := [
+	{ "scene": preload("res://assets/janitor_cart.glb"), "off": Vector3(-0.246, 0.0, -0.0905), "scale": 1.0 },
+	{ "scene": preload("res://assets/janitor_broom.glb"), "off": Vector3(3.568, 0.0758, -2.4754), "scale": 1.0 },
+	{ "scene": preload("res://assets/wet_floor_sign.glb"), "off": Vector3(4.605, 0.0277, -0.0044), "scale": 0.18 },
+	{ "scene": preload("res://assets/sink_table.glb"), "off": Vector3(10.9226, -0.1394, 36.0145), "scale": 0.13 },
+	{ "scene": preload("res://assets/tree.glb"), "off": Vector3(1.438, -0.0163, -0.9305), "scale": 0.16 },
+]
 
 const STALL_SPACING := 1.4  # stall models are 1.29 wide; keep the row tight
 const STALL_X := 3.4
@@ -70,6 +80,27 @@ func _ready() -> void:
 	# Dev aid: PROTO_DEBUG=knock / PROTO_DEBUG=lid auto-opens the first
 	# hostile / vacant stall so the interior can be checked without playing.
 	var dbg := OS.get_environment("PROTO_DEBUG")
+	if dbg == "dump":
+		get_tree().create_timer(2.0).timeout.connect(func() -> void:
+			for mi in find_children("*", "MeshInstance3D", true, false):
+				var box: AABB = mi.global_transform * mi.get_aabb()
+				if box.size.length() > 4.0 and box.position.z > -8.0:
+					print("BIG: ", mi.get_path(), " box=", box)
+			for e in get_tree().get_nodes_in_group("enemies"):
+				print("ENEMY: ", e.get_script().resource_path.get_file(), " at ", e.global_position)
+			print("player at ", player.global_position, " urgency=", player.urgency)
+			print("dump done")
+		)
+	if dbg == "top":
+		get_tree().create_timer(1.0).timeout.connect(func() -> void:
+			var cam := Camera3D.new()
+			add_child(cam)
+			cam.global_position = Vector3(0, 2.4, 1.5)
+			cam.rotation_degrees = Vector3(-15, 0, 0)
+			cam.far = 200
+			cam.fov = 85
+			cam.make_current()
+		)
 	if dbg == "knock" or dbg == "lid":
 		var want: Stall.Outcome = Stall.Outcome.HOSTILE if dbg == "knock" else Stall.Outcome.EMPTY
 		get_tree().create_timer(1.5).timeout.connect(func() -> void:
@@ -143,8 +174,8 @@ func _spawn_stall_pair(z: float) -> void:
 		stalls.append(stall)
 		stall_count += 1
 
-	# Flickering fluorescent every few pairs.
-	if pair_count % LIGHT_EVERY_N_PAIRS == 0:
+	# Flickering fluorescent every few pairs, starting right at spawn.
+	if pair_count % LIGHT_EVERY_N_PAIRS == 1:
 		var fixture := MeshInstance3D.new()
 		var tube := BoxMesh.new()
 		tube.size = Vector3(0.15, 0.06, 1.4)
@@ -165,17 +196,35 @@ func _spawn_stall_pair(z: float) -> void:
 		add_child(light)
 
 	# Occasional roamer in the corridor so combat happens between knocks too.
-	if stall_count > 12 and rng.randf() < 0.08:
+	# Never within ~15m of the player so nobody gets jumped at spawn.
+	var far_enough: bool = z < player.global_position.z - 15.0 if player else false
+	if far_enough and stall_count > 12 and rng.randf() < 0.08:
 		_spawn_enemy(Vector3(rng.randf_range(-1.6, 1.6), 0, z))
+	# Deeper in, crawlers start skittering down the corridor.
+	if far_enough and stall_count > 20 and rng.randf() < 0.04:
+		_spawn_crawler(Vector3(rng.randf_range(-1.6, 1.6), 0, z))
 
 	# Decorative plant hugging the corridor edge now and then.
-	if rng.randf() < 0.06:
+	if rng.randf() < 0.05:
 		var plant: Node3D = PLANT_SCENE.instantiate()
 		var ps := rng.randf_range(0.5, 0.7)
 		plant.scale = Vector3(ps, ps, ps)
 		plant.position = Vector3([-2.5, 2.5][rng.randi_range(0, 1)], 0.32 * ps, z + STALL_SPACING * 0.5)
 		plant.rotation.y = rng.randf_range(0, TAU)
 		add_child(plant)
+
+	# Janitorial clutter: carts, brooms, signs, sinks, trees.
+	if rng.randf() < 0.07:
+		var def: Dictionary = PROP_DEFS[rng.randi_range(0, PROP_DEFS.size() - 1)]
+		var wrapper := Node3D.new()
+		add_child(wrapper)
+		var s: float = def["scale"]
+		wrapper.scale = Vector3(s, s, s)
+		wrapper.position = Vector3([-2.55, 2.55][rng.randi_range(0, 1)], 0, z + STALL_SPACING * 0.5)
+		wrapper.rotation.y = rng.randf_range(0, TAU)
+		var inst: Node3D = def["scene"].instantiate()
+		inst.position = -def["off"]
+		wrapper.add_child(inst)
 
 
 func _roll_outcome() -> Stall.Outcome:
@@ -204,7 +253,7 @@ func _on_stall_opened(stall: Stall, outcome: Stall.Outcome) -> void:
 		Stall.Outcome.LOOT:
 			if not player.has_plunger and rng.randf() < 0.4:
 				player.give_plunger()
-				_show_message("Someone left a PLUNGER! (bigger, stronger swings)")
+				_show_message("Someone left a PLUNGER! (stronger but slower swings)")
 			else:
 				player.urgency = maxf(0.0, player.urgency - 18.0)
 				_show_message("Empty... a moment of calm. (urgency down)")
@@ -217,7 +266,12 @@ func _on_stall_opened(stall: Stall, outcome: Stall.Outcome) -> void:
 				player.urgency = maxf(0.0, player.urgency - 12.0)
 				_show_message("\"Good luck out there.\" (urgency down)")
 		Stall.Outcome.EMPTY:
-			_show_message("Vacant... but unspeakable. Not this one.")
+			# Sometimes "vacant" just means whatever's in there doesn't count as a person.
+			if stall_count > 16 and rng.randf() < 0.3:
+				_show_message("...it was NOT empty. IT CRAWLS!!")
+				_spawn_crawler(stall.interior_point())
+			else:
+				_show_message("Vacant... but unspeakable. Not this one.")
 		Stall.Outcome.FREE:
 			free_stall = stall
 			_show_message("THE FREE STALL! But the queue jumpers arrive...", 4.0)
@@ -245,6 +299,12 @@ func _spawn_enemy(pos: Vector3) -> void:
 	var e := ProtoEnemy.new()
 	add_child(e)
 	e.global_position = pos + Vector3(0, 0.1, 0)
+
+
+func _spawn_crawler(pos: Vector3) -> void:
+	var c := ProtoCrawler.new()
+	add_child(c)
+	c.global_position = pos + Vector3(0, 0.1, 0)
 
 
 func _on_player_hit() -> void:
@@ -292,8 +352,8 @@ func _build_environment() -> void:
 	add_child(world)
 	_world_box(world, Vector3(13, 1, 1000), Vector3(0, -0.5, -480), Color.BLACK, false)                    # floor
 	_world_box(world, Vector3(13, 1, 1000), Vector3(0, CEILING_Y + 0.51, -480), Color.BLACK, false)        # ceiling
-	_world_box(world, Vector3(0.4, 3.4, 1000), Vector3(-WALL_X, 1.6, -480), Color(0.5, 0.47, 0.4))         # left wall
-	_world_box(world, Vector3(0.4, 3.4, 1000), Vector3(WALL_X, 1.6, -480), Color(0.5, 0.47, 0.4))          # right wall
+	_world_box(world, Vector3(0.4, 3.4, 1000), Vector3(-WALL_X - 0.21, 1.6, -480), Color.BLACK, false)     # left wall
+	_world_box(world, Vector3(0.4, 3.4, 1000), Vector3(WALL_X + 0.21, 1.6, -480), Color.BLACK, false)      # right wall
 	_world_box(world, Vector3(11, 3.4, 0.4), Vector3(0, 1.6, 3.0), Color(0.5, 0.47, 0.4))                  # back wall
 
 
@@ -322,15 +382,24 @@ func _spawn_tile_row(z: float) -> void:
 	for x in [-4.0, -2.0, 0.0, 2.0, 4.0]:
 		_place_tile(FLOOR_TILE, Vector3(x, -0.005, z))
 		_place_tile(CEILING_TILE, Vector3(x, CEILING_Y, z))
+	# Wall panels standing upright, textured face toward the corridor.
+	_place_tile(WALL_PANEL, Vector3(-WALL_X, CEILING_Y / 2.0, z), PI / 2.0)
+	_place_tile(WALL_PANEL, Vector3(WALL_X, CEILING_Y / 2.0, z), -PI / 2.0)
 
 
-func _place_tile(scene: PackedScene, pos: Vector3) -> void:
+func _place_tile(scene: PackedScene, pos: Vector3, roll := 0.0) -> void:
 	var wrapper := Node3D.new()
 	add_child(wrapper)
 	wrapper.position = pos
+	if roll != 0.0:
+		# Standing panel: the 2m tile only covers 2 of the 2.8m height.
+		wrapper.scale.y = CEILING_Y / TILE_SIZE
+	var rot := Node3D.new()
+	rot.rotation.z = roll
+	wrapper.add_child(rot)
 	var inst: Node3D = scene.instantiate()
 	inst.position = -TILE_BAKED_CENTER
-	wrapper.add_child(inst)
+	rot.add_child(inst)
 
 
 func _build_hud() -> void:

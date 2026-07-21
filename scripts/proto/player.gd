@@ -8,17 +8,21 @@ signal died
 signal hit
 
 const PLUNGER_SCENE := preload("res://assets/plunger.glb")
+const ARM_SCENE := preload("res://assets/arm.glb")
+
+## Baked center of the arm mesh (cancelled at mount time).
+const ARM_CENTER := Vector3(-7.351, 10.096, -0.350)
 
 const BASE_SPEED := 4.6
 const PANIC_SPEED := 2.2
 const MOUSE_SENS := 0.0022
-const ATTACK_COOLDOWN := 0.5
 const URGENCY_PER_SEC := 1.1
 const URGENCY_PER_HIT := 10.0
 
 var urgency := 0.0
 var attack_damage := 1
 var attack_range := 2.2
+var attack_cooldown := 0.5
 var has_plunger := false
 
 var _attack_timer := 0.0
@@ -29,7 +33,7 @@ var _bob_time := 0.0
 var _head: Node3D
 var _cam: Camera3D
 var _arm_pivot: Node3D
-var _fist: MeshInstance3D
+var _arm: Node3D
 var _plunger: Node3D = null
 
 
@@ -54,19 +58,27 @@ func _ready() -> void:
 	_head.add_child(_cam)
 	_cam.make_current()
 
-	# Viewmodel: bare fist until the plunger shows up.
+	# Faint personal glow so nearby geometry (and the viewmodel) always reads.
+	var glow := OmniLight3D.new()
+	glow.light_energy = 0.4
+	glow.omni_range = 5.0
+	glow.light_color = Color(0.9, 0.95, 1.0)
+	glow.shadow_enabled = false
+	_head.add_child(glow)
+
+	# Viewmodel: real arm model, punching until the plunger shows up.
 	_arm_pivot = Node3D.new()
-	_arm_pivot.position = Vector3(0.32, -0.28, -0.5)
+	_arm_pivot.position = Vector3(0.3, -0.2, -0.45)
+	_arm_pivot.rotation_degrees = Vector3(12, -6, 0)
 	_cam.add_child(_arm_pivot)
 
-	_fist = MeshInstance3D.new()
-	var fist_mesh := BoxMesh.new()
-	fist_mesh.size = Vector3(0.13, 0.13, 0.22)
-	_fist.mesh = fist_mesh
-	var fist_mat := StandardMaterial3D.new()
-	fist_mat.albedo_color = Color(0.85, 0.66, 0.5)
-	_fist.material_override = fist_mat
-	_arm_pivot.add_child(_fist)
+	_arm = Node3D.new()
+	_arm.scale = Vector3(0.09, 0.09, 0.09)
+	_arm.rotation_degrees = Vector3(0, 90, 0)  # model fingers point +X; face them forward
+	_arm_pivot.add_child(_arm)
+	var arm_inst: Node3D = ARM_SCENE.instantiate()
+	arm_inst.position = -ARM_CENTER
+	_arm.add_child(arm_inst)
 
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
@@ -142,7 +154,7 @@ func facing() -> Vector3:
 
 
 func _attack() -> void:
-	_attack_timer = ATTACK_COOLDOWN
+	_attack_timer = attack_cooldown
 
 	var f := facing()
 	for e in get_tree().get_nodes_in_group("enemies"):
@@ -173,10 +185,12 @@ func give_plunger() -> void:
 	if has_plunger:
 		return
 	has_plunger = true
+	# Heavier swings: more damage but slower and shorter reach than before.
 	attack_damage = 2
-	attack_range = 2.8
+	attack_range = 2.5
+	attack_cooldown = 0.75
 
-	_fist.visible = false
+	_arm.visible = false
 	_plunger = PLUNGER_SCENE.instantiate()
 	_plunger.scale = Vector3(1.2, 1.2, 1.2)
 	_plunger.position = Vector3(0, -0.12, 0.05)
