@@ -30,7 +30,7 @@ const PROP_DEFS := [
 ]
 
 const SINK_SCENE := preload("res://assets/sink_table.glb")
-const SINK_OFF := Vector3(10.9226, -0.1394, 36.0145)
+const SINK_OFF := Vector3(11.8065, -0.1394, 36.0145)
 const TREE_SCENE := preload("res://assets/tree.glb")
 const TREE_OFF := Vector3(1.438, -0.0163, -0.9305)
 
