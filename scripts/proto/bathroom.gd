@@ -91,6 +91,10 @@ func _ready() -> void:
 			print("player at ", player.global_position, " urgency=", player.urgency)
 			print("dump done")
 		)
+	if dbg == "crawler":
+		get_tree().create_timer(1.5).timeout.connect(func() -> void:
+			_spawn_crawler(player.global_position + Vector3(0.4, 0, -3.5))
+		)
 	if dbg == "top":
 		get_tree().create_timer(1.0).timeout.connect(func() -> void:
 			var cam := Camera3D.new()

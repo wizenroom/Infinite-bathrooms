@@ -6,9 +6,11 @@ extends CharacterBody3D
 
 const CRAWLER_SCENE := preload("res://assets/crawler.glb")
 
-## Model is ~190 units long with the body along +Y; scale it to human length
-## and lay it flat so the head points forward (-Z).
-const MODEL_SCALE := 0.01
+## The GLB already lies flat with the head at -Z (the rig node carries the
+## baked rotation), but sits far off-origin. Offset from animated bone bounds:
+## x recenter, y lift lowest bone to ground, z recenter body under the origin.
+const MODEL_SCALE := 0.12
+const MODEL_OFFSET := Vector3(0.4, 4.05, 8.5)
 
 const SPEED := 4.4
 const AGGRO_RANGE := 14.0
@@ -50,11 +52,14 @@ func _ready() -> void:
 
 	var model: Node3D = CRAWLER_SCENE.instantiate()
 	model.scale = Vector3(MODEL_SCALE, MODEL_SCALE, MODEL_SCALE)
-	model.rotation.x = -PI / 2.0  # body Y-axis -> flat along +Z, head at -Z
-	model.position.y = 0.12
+	model.position = MODEL_OFFSET * MODEL_SCALE
 	_visual.add_child(model)
 
-	_meshes = model.find_children("*", "MeshInstance3D", true, false)
+	# The Eyes mesh is not skinned - it floats at the standing bind pose. Hide it.
+	for mi in model.find_children("Eyes", "MeshInstance3D", true, false):
+		mi.visible = false
+
+	_meshes = model.find_children("Man", "MeshInstance3D", true, false)
 	_flash_mat = StandardMaterial3D.new()
 	_flash_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	_flash_mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
