@@ -68,6 +68,10 @@ var _msg_tween: Tween
 var _overlay: ColorRect
 var _overlay_label: Label
 
+## Everything spawned per-z, so geometry behind the player can be freed.
+var _spawned: Array = []  # [{ "z": float, "node": Node }]
+var _prop_merge_cache := {}
+
 
 func _ready() -> void:
 	rng.randomize()
@@ -97,6 +101,13 @@ func _ready() -> void:
 				print("ENEMY: ", e.get_script().resource_path.get_file(), " at ", e.global_position)
 			print("player at ", player.global_position, " urgency=", player.urgency)
 			print("dump done")
+		)
+	if dbg == "stress":
+		get_tree().create_timer(1.5).timeout.connect(func() -> void:
+			_spawn_fallen_tree(player.global_position.z - 6.0)
+			_spawn_fallen_tree(player.global_position.z - 10.0)
+			_spawn_crawler(player.global_position + Vector3(-0.8, 0, -16.0))
+			_spawn_crawler(player.global_position + Vector3(0.8, 0, -18.0))
 		)
 	if dbg == "tree":
 		get_tree().create_timer(1.5).timeout.connect(func() -> void:
@@ -145,6 +156,8 @@ func _process(delta: float) -> void:
 		_spawn_tile_row(next_tile_z)
 		next_tile_z -= TILE_SIZE
 
+	_prune_behind()
+
 	_bar.value = player.urgency
 
 	_check_win()
@@ -185,6 +198,7 @@ func _spawn_stall_pair(z: float) -> void:
 			continue
 		var stall := Stall.new()
 		add_child(stall)
+		_track(stall, z)
 		stall.position = Vector3(side * STALL_X, 0, z)
 		# Stall door faces local -Z; rotate so it faces the corridor center.
 		stall.rotation.y = side * PI / 2.0
@@ -206,6 +220,7 @@ func _spawn_stall_pair(z: float) -> void:
 		fixture.material_override = tube_mat
 		fixture.position = Vector3(0, CEILING_Y - 0.05, z)
 		add_child(fixture)
+		_track(fixture, z)
 
 		var light := FlickerLight.new()
 		light.light_color = Color(0.85, 0.95, 0.85)
@@ -213,6 +228,7 @@ func _spawn_stall_pair(z: float) -> void:
 		light.omni_range = 9.0
 		light.position = Vector3(0, CEILING_Y - 0.3, z)
 		add_child(light)
+		_track(light, z)
 
 	# Occasional roamer in the corridor so combat happens between knocks too.
 	# Never within ~15m of the player so nobody gets jumped at spawn.
@@ -313,21 +329,64 @@ func _spawn_enemy(pos: Vector3) -> void:
 
 
 func _spawn_crawler(pos: Vector3) -> void:
+	# The crawler model is 1.8M triangles; more than 2 alive tanks the GPU.
+	if get_tree().get_nodes_in_group("crawlers").size() >= 2:
+		_spawn_enemy(pos)
+		return
 	var c := ProtoCrawler.new()
 	add_child(c)
 	c.global_position = pos + Vector3(0, 0.1, 0)
 
 
+func _track(node: Node, z: float) -> void:
+	_spawned.append({ "z": z, "node": node })
+
+
+## Free world geometry the player has left behind. Without this the corridor
+## accumulates forever and the frame rate dies a slow death.
+func _prune_behind() -> void:
+	var cutoff := player.global_position.z + 12.0
+	var kept: Array = []
+	for entry in _spawned:
+		var node: Node = entry["node"]
+		if not is_instance_valid(node):
+			continue
+		if entry["z"] > cutoff:
+			if node is Stall:
+				# The prize must survive even if the player backtracks late.
+				if node.outcome == Stall.Outcome.FREE:
+					kept.append(entry)
+					continue
+				stalls.erase(node)
+			node.queue_free()
+		else:
+			kept.append(entry)
+	_spawned = kept
+
+	# Enemies abandoned far behind stop mattering; cull them too.
+	for e in get_tree().get_nodes_in_group("enemies"):
+		if e.global_position.z > player.global_position.z + 20.0:
+			e.queue_free()
+
+
 func _spawn_prop(def: Dictionary, pos: Vector3, yaw: float) -> void:
 	var wrapper := Node3D.new()
 	add_child(wrapper)
+	_track(wrapper, pos.z)
 	var s: float = def["scale"]
 	wrapper.scale = Vector3(s, s, s)
 	wrapper.position = pos
 	wrapper.rotation.y = yaw
-	var inst: Node3D = def["scene"].instantiate()
-	inst.position = -def["off"]
-	wrapper.add_child(inst)
+
+	# Merged single-mesh version (the cart alone is 82 MeshInstances raw),
+	# hidden past the fog.
+	if not _prop_merge_cache.has(def["scene"]):
+		_prop_merge_cache[def["scene"]] = MeshMerge.merge_scene(def["scene"])["mesh"]
+	var mi := MeshInstance3D.new()
+	mi.mesh = _prop_merge_cache[def["scene"]]
+	mi.position = -def["off"]
+	mi.visibility_range_end = 32.0
+	wrapper.add_child(mi)
 
 	if def.has("col_size"):
 		var body := StaticBody3D.new()
@@ -352,6 +411,7 @@ func _spawn_sink(side: int, z: float) -> void:
 	for dz in [-0.35, 0.35]:
 		var wrapper := Node3D.new()
 		add_child(wrapper)
+		_track(wrapper, z)
 		wrapper.scale = Vector3(SINK_SCALE, SINK_SCALE, SINK_SCALE)
 		wrapper.position = Vector3(x, 0, z + dz)
 		# Basin lip faces -Z in model space (like the stall doors); turn it
@@ -363,6 +423,7 @@ func _spawn_sink(side: int, z: float) -> void:
 
 	var body := StaticBody3D.new()
 	add_child(body)
+	_track(body, z)
 	body.position = Vector3(x, 0.6, z)
 	var col := CollisionShape3D.new()
 	var shape := BoxShape3D.new()
@@ -376,7 +437,11 @@ func _spawn_sink(side: int, z: float) -> void:
 	lamp.light_energy = 0.6
 	lamp.omni_range = 2.5
 	lamp.position = Vector3(x, 1.8, z)
+	lamp.distance_fade_enabled = true
+	lamp.distance_fade_begin = 18.0
+	lamp.distance_fade_length = 6.0
 	add_child(lamp)
+	_track(lamp, z)
 
 
 ## A huge tree fallen through the bathroom, clipping floor and ceiling.
@@ -384,6 +449,7 @@ func _spawn_sink(side: int, z: float) -> void:
 func _spawn_fallen_tree(z: float) -> void:
 	var wrapper := Node3D.new()
 	add_child(wrapper)
+	_track(wrapper, z)
 	var s := rng.randf_range(0.9, 1.3)
 	wrapper.scale = Vector3(s, s, s)
 	wrapper.position = Vector3(rng.randf_range(-2.0, 2.0), rng.randf_range(0.2, 1.2), z)
@@ -395,6 +461,9 @@ func _spawn_fallen_tree(z: float) -> void:
 	var inst: Node3D = TREE_SCENE.instantiate()
 	inst.position = -Vector3(TREE_OFF.x, 4.5, TREE_OFF.z)  # pivot near trunk middle
 	wrapper.add_child(inst)
+	# 345k triangles; stop rendering it once the fog has swallowed it.
+	for mi in inst.find_children("*", "MeshInstance3D", true, false):
+		mi.visibility_range_end = 42.0
 
 
 func _on_player_hit() -> void:
@@ -480,6 +549,7 @@ func _spawn_tile_row(z: float) -> void:
 func _place_tile(scene: PackedScene, pos: Vector3, roll := 0.0) -> void:
 	var wrapper := Node3D.new()
 	add_child(wrapper)
+	_track(wrapper, pos.z)
 	wrapper.position = pos
 	if roll != 0.0:
 		# Standing panel: the 2m tile only covers 2 of the 2.8m height.

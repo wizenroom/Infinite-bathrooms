@@ -45,10 +45,15 @@ const STALL_WIDTH := 1.29
 const STALL_DEPTH := 1.57
 const STALL_HEIGHT := 2.29
 
+## Merged-mesh cache, one entry per variant (the GLBs are 117 MeshInstances
+## each; merging cuts a stall from ~117 draw calls to a handful).
+static var _merge_cache := {}
+
 var outcome := Outcome.EMPTY
 var is_open := false
 
 var _model: Node3D = null
+var _lid: MeshInstance3D = null
 var _door_collider: StaticBody3D
 var _occupant: Node3D = null
 
@@ -75,6 +80,11 @@ func setup(p_outcome: Outcome, _rng: RandomNumberGenerator) -> void:
 	ind.light_energy = 0.5
 	ind.omni_range = 1.2
 	ind.position = Vector3(0, 2.1, -0.25)
+	# Dozens of stalls are alive at once; fade the glow out with distance so
+	# far ones stop costing light-pass time.
+	ind.distance_fade_enabled = true
+	ind.distance_fade_begin = 18.0
+	ind.distance_fade_length = 6.0
 	add_child(ind)
 
 
@@ -129,9 +139,25 @@ func _mount_model(open: bool) -> void:
 	_model.position.z = MODEL_FRONT_Z  # door hinge plane lands on local z=0
 	add_child(_model)
 
-	var inst: Node3D = scene.instantiate()
-	inst.position.x = -MODEL_X_CENTER[key]
-	_model.add_child(inst)
+	if not _merge_cache.has(key):
+		# The lid stays a separate part so it can swing open / turn gold.
+		_merge_cache[key] = MeshMerge.merge_scene(scene, LID_SIZE)
+	var data: Dictionary = _merge_cache[key]
+
+	var holder := Node3D.new()
+	holder.position.x = -MODEL_X_CENTER[key]
+	_model.add_child(holder)
+
+	var mi := MeshInstance3D.new()
+	mi.mesh = data["mesh"]
+	holder.add_child(mi)
+
+	_lid = null
+	for part in data["parts"]:
+		_lid = MeshInstance3D.new()
+		_lid.mesh = part["mesh"]
+		_lid.transform = part["xform"]
+		holder.add_child(_lid)
 
 
 func _seat_occupant() -> void:
@@ -161,38 +187,29 @@ func _bless_the_throne() -> void:
 	gold.emission_enabled = true
 	gold.emission = Color(1.0, 0.8, 0.2)
 	gold.emission_energy_multiplier = 1.5
-	for mi in _model.find_children("*", "MeshInstance3D", true, false):
-		if mi.mesh == null:
-			continue
-		var s: Vector3 = mi.mesh.get_aabb().size
-		if s.distance_to(LID_SIZE) < 0.03:
-			mi.material_override = gold
+	if _lid:
+		_lid.material_override = gold
 
 
 ## Swing the toilet lid up around its rear (tank-side) edge. The lid is a
 ## separate mesh in the GLB, found by its AABB size signature; we wrap it in
 ## a pivot placed on the hinge edge and rotate that.
 func _open_lid() -> void:
-	for mi in _model.find_children("*", "MeshInstance3D", true, false):
-		if mi.mesh == null:
-			continue
-		if mi.mesh.get_aabb().size.distance_to(LID_SIZE) > 0.03:
-			continue
-
-		# Lid bounds in stall-local space (world AABB axes would be wrong
-		# because the manager rotates the whole stall).
-		var to_stall: Transform3D = global_transform.affine_inverse() * mi.global_transform
-		var box: AABB = to_stall * mi.mesh.get_aabb()
-
-		var hinge := box.get_center()
-		hinge.z = box.end.z - 0.02  # rear edge, next to the tank
-
-		var pivot := Node3D.new()
-		add_child(pivot)
-		pivot.position = hinge
-		mi.reparent(pivot)
-		pivot.rotation.x = deg_to_rad(100.0)
+	if not _lid:
 		return
+	# Lid bounds in stall-local space (world AABB axes would be wrong
+	# because the manager rotates the whole stall).
+	var to_stall: Transform3D = global_transform.affine_inverse() * _lid.global_transform
+	var box: AABB = to_stall * _lid.mesh.get_aabb()
+
+	var hinge := box.get_center()
+	hinge.z = box.end.z - 0.02  # rear edge, next to the tank
+
+	var pivot := Node3D.new()
+	add_child(pivot)
+	pivot.position = hinge
+	_lid.reparent(pivot)
+	pivot.rotation.x = deg_to_rad(100.0)
 
 
 func _build_collision() -> void:

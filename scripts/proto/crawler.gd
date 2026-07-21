@@ -35,6 +35,7 @@ var _player: Node3D
 
 func _ready() -> void:
 	add_to_group("enemies")
+	add_to_group("crawlers")
 
 	# Nothing collides WITH the crawler (layer 0): the player would otherwise
 	# get shoved around or end up standing on it. It still hits via the lunge.
@@ -63,6 +64,9 @@ func _ready() -> void:
 		mi.visible = false
 
 	_meshes = model.find_children("Man", "MeshInstance3D", true, false)
+	# The body is 1.8M triangles; don't render it beyond the fog.
+	for mi in _meshes:
+		mi.visibility_range_end = 26.0
 	_flash_mat = StandardMaterial3D.new()
 	_flash_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	_flash_mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
