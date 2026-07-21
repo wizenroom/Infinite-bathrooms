@@ -1,8 +1,13 @@
 [gd_scene format=3 uid="uid://d2cl357p6d24u"]
 
-[ext_resource type="PackedScene" uid="uid://dtg2f3qqi2vml" path="res://assets/floor_tile.glb" id="1_dalx4"]
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_prt3j"]
+albedo_color = Color(0.5184581, 0.34592196, 0.11910657, 1)
 
-[node name="floor_tile" unique_id=345918832 instance=ExtResource("1_dalx4")]
+[sub_resource type="BoxMesh" id="BoxMesh_1edjn"]
 
-[node name="Cube_005" parent="." index="0" unique_id=551349330]
-transform = Transform3D(0.5, 0, 0, 0, 0.005, 0, 0, 0, 0.5, 0.5, 0, 0.5)
+[node name="floor_tile" type="Node3D" unique_id=345918832]
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="." unique_id=492369973]
+transform = Transform3D(1, 0, 0, 0, 0.1, 0, 0, 0, 1, 0.5, -0.05, 0.5)
+material_override = SubResource("StandardMaterial3D_prt3j")
+mesh = SubResource("BoxMesh_1edjn")

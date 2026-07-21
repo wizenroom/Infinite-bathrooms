@@ -30,7 +30,6 @@ func make_grid(default_value = null) -> Array:
 			column.append(default_value)
 		grid.append(column)
 	
-	print("GRID CREATED", grid)
 	return grid
 
 
@@ -44,6 +43,9 @@ func is_inside_map_bound() -> bool:
 
 func pick_random_direction() -> DirectionType:
 	return [DirectionType.RIGHT, DirectionType.LEFT].pick_random()
+	
+func tryRandomDown() -> DirectionType:
+	return [lastdir,lastdir,lastdir, DirectionType.DOWN].pick_random()
 
 
 func go_down():
@@ -66,7 +68,6 @@ func go_left():
 	lastdir = DirectionType.LEFT
 
 	assert(is_inside_map_bound(), "Tried to go out of bounds")
-
 
 func go_right():
 	assert(is_inside_map_bound(), "Not inside when calling")
@@ -101,12 +102,11 @@ func build():
 	lastdir = pick_random_direction()
 
 	while is_inside_map_bound():
-		print(Map_Template)
 		
 		if lastdir == DirectionType.DOWN:
 			dir = pick_random_direction()
 		else:
-			dir = lastdir
+			dir = tryRandomDown()
 
 		match dir:
 			DirectionType.LEFT:
@@ -115,6 +115,7 @@ func build():
 				elif can_go_down():
 					go_down()
 				else:
+					Map_Template[currentX][currentY] = RoomType.DOWN
 					break
 
 			DirectionType.RIGHT:
@@ -123,6 +124,14 @@ func build():
 				elif can_go_down():
 					go_down()
 				else:
+					Map_Template[currentX][currentY] = RoomType.DOWN
+					break
+			
+			DirectionType.DOWN:
+				if can_go_down():
+					go_down()
+				else:
+					Map_Template[currentX][currentY] = RoomType.DOWN
 					break
 
 			_:

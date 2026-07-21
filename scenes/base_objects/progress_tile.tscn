@@ -1,68 +1,16 @@
-[gd_scene format=4 uid="uid://btylwcrr7b4kx"]
+[gd_scene format=3 uid="uid://btylwcrr7b4kx"]
 
 [ext_resource type="PackedScene" uid="uid://d2cl357p6d24u" path="res://scenes/base_objects/floor_tile.tscn" id="1_2uy4c"]
 [ext_resource type="Script" uid="uid://hp8nr6ehy2km" path="res://scripts/progress_tile.gd" id="2_tplv7"]
-[ext_resource type="Texture2D" uid="uid://byfkxq8h3ehdq" path="res://assets/floor_tile_Floor_Tile_600×600mm_basecolor.jpg" id="3_2rgle"]
-[ext_resource type="Texture2D" uid="uid://cswiaoc37ulga" path="res://assets/floor_tile_Floor_Tile_600×600mm_roughness.png" id="4_owrdl"]
-[ext_resource type="Texture2D" uid="uid://bv1mdhx7idcn5" path="res://assets/floor_tile_Floor_Tile_600×600mm_normal.jpg" id="5_hxmbw"]
-
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_34x2g"]
-resource_name = "Floor Tile Light Gray 600×600mm"
-cull_mode = 2
-albedo_texture = ExtResource("3_2rgle")
-metallic_texture = ExtResource("4_owrdl")
-metallic_texture_channel = 2
-roughness_texture = ExtResource("4_owrdl")
-roughness_texture_channel = 1
-normal_enabled = true
-normal_texture = ExtResource("5_hxmbw")
-metadata/_gltf_primary_texture_coord = 1
-
-[sub_resource type="ArrayMesh" id="ArrayMesh_ih2jw"]
-_surfaces = [{
-"aabb": AABB(-1, -1, -1, 2, 2, 2),
-"format": 34896613377,
-"index_count": 36,
-"index_data": PackedByteArray("AAABAAIAAAADAAEABAACAAEAAwAEAAEABQAAAAIAAwAAAAUABAAGAAIABQACAAYAAwAHAAQAAwAFAAcABwAGAAQABwAFAAYA"),
-"name": "Floor Tile Light Gray 600×600mm",
-"primitive": 3,
-"uv_scale": Vector4(0, 0, 0, 0),
-"vertex_count": 8,
-"vertex_data": PackedByteArray("AAAAAP//AAAAAP//AAAAAAAA/////wAAAAAAAAAAAAD/////AAAAAP//AAD//wAA////////AAD//wAAAAAAAA==")
-}]
-blend_shape_mode = 0
-
-[sub_resource type="ArrayMesh" id="ArrayMesh_00rb7"]
-resource_name = "floor_tile_Cube_004"
-_surfaces = [{
-"aabb": AABB(-1, -1, -1, 2, 2, 2),
-"attribute_data": PackedByteArray("00Yruf9f//8rudNG/5//v9NG00b/n///K7kruf9f/7/TRiu5/1//vyu500b/n/9/00bTRv+f/78ruSu5/1//fyu5K7n/X/9/00bTRv+f/z8rudNG/5//f9NGK7n/X/8/K7kruf9f/z/TRtNG/58AACu500b/n/8/00Yruf9fAADTRtNG/x//fyu5K7n/X/8/K7nTRv9f/3/TRiu5/x//Pyu500b/n/9/00Yruf/f/z/TRtNG/9//fyu5K7n/n/8/"),
-"format": 34896613431,
-"index_count": 36,
-"index_data": PackedByteArray("AAABAAIAAAADAAEABAAFAAYABAAHAAUACAAJAAoACAALAAkADAANAA4ADAAPAA0AEAARABIAEAATABEAFAAVABYAFAAXABUA"),
-"material": SubResource("StandardMaterial3D_34x2g"),
-"name": "Floor Tile Light Gray 600×600mm",
-"primitive": 3,
-"uv_scale": Vector4(0, 0, 0, 0),
-"vertex_count": 24,
-"vertex_data": PackedByteArray("AAAAAP//AAAAAP//AAAAAAAA/////wAAAAAAAAAAAAAAAAAAAAAAAP////8AAAAAAAD//wAAAAD//wAAAAAAAP//AAAAAP+//////////7//////AAD/v///AAD///+///8AAP//AIAAAP////8AgP///////wCAAAAAAP//AIAAAAAAAAD/P///AAD///8///8AAAAA/z8AAAAA////P/////8AAP+/AAD//////78AAP//AAD/v/////////+//z//f/8//3//P/9//z//f////3////9/////f////3//fwAA/38AAP9/AAD/fwAA/3////9/////f////3///wAA/38AAP9/AAD/fwAA/3////9/////f////3////9/")
-}]
-blend_shape_mode = 0
-shadow_mesh = SubResource("ArrayMesh_ih2jw")
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_1edjn"]
-albedo_color = Color(0, 0, 0, 1)
+albedo_color = Color(1, 0, 0, 1)
 
 [sub_resource type="TextMesh" id="TextMesh_1edjn"]
 text = "<"
 
 [node name="floor_tile" unique_id=345918832 instance=ExtResource("1_2uy4c")]
 script = ExtResource("2_tplv7")
-
-[node name="Cube_005" type="MeshInstance3D" parent="Cube_005" parent_id_path=PackedInt32Array(551349330) index="0" unique_id=1284833813]
-transform = Transform3D(0.5, 0, 0, 0, 0.005, 0, 0, 0, 0.5, 0.5, 0, 6.5)
-mesh = SubResource("ArrayMesh_00rb7")
-skeleton = NodePath("")
 
 [node name="Arrow" type="MeshInstance3D" parent="." index="1" unique_id=200640291]
 transform = Transform3D(5, 0, 0, 0, -2.1855695e-07, 5, 0, -5, -2.1855695e-07, 0.5, 0, 0.5)
