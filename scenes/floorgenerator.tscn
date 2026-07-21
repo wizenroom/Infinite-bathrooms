@@ -1,6 +1,10 @@
 [gd_scene format=3 uid="uid://dvc5oonbxxvje"]
 
 [ext_resource type="Script" uid="uid://ddlxnyx0lknb0" path="res://scripts/map/map_generator.gd" id="1_bpbj4"]
+[ext_resource type="PackedScene" uid="uid://dh3kqcfi5h3e4" path="res://gremlins_fpc/addons/gremlins_first_person/gremlins_fpc.tscn" id="2_cdwa8"]
 
 [node name="FloorGenerator" type="Node3D" unique_id=2140070853]
 script = ExtResource("1_bpbj4")
+
+[node name="FirstPersonCharacter" parent="." unique_id=758639874 instance=ExtResource("2_cdwa8")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3, 5, 3)

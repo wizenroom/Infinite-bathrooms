@@ -10,7 +10,7 @@ const RoomType = MapEnums.RoomType
 const TileScene = preload("res://scenes/base_objects/floor_tile.tscn")
 const ProgressTileScene = preload("res://scenes/base_objects/progress_tile.tscn")
 
-const TILE_SIZE := 1
+const TILE_SIZE := 50
 
 func build_rooms():
 	for x in width:
@@ -26,7 +26,8 @@ func build_rooms():
 				tile = ProgressTileScene.instantiate()
 				add_child(tile)
 				tile.set_direction(room)
-
+			
+			tile.scale = Vector3i.ONE * TILE_SIZE
 			tile.position = Vector3(
 				x * TILE_SIZE,
 				0,
