@@ -1,7 +1,7 @@
 extends Node3D
 
-var width = 10;
-var height = 10;
+var width = 5;
+var height = 5;
 
 var builder : MapTemplateBuilder
 

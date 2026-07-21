@@ -47,6 +47,16 @@ func pick_random_direction() -> DirectionType:
 func tryRandomDown() -> DirectionType:
 	return [lastdir,lastdir,lastdir, DirectionType.DOWN].pick_random()
 
+func pickDirAwayFromWall() -> DirectionType:
+	var distfromleft = currentX - 0
+	var distfromright = width - currentX 
+	
+	if distfromleft == distfromright:
+		return pick_random_direction()
+	elif distfromright < distfromleft:
+		return DirectionType.LEFT
+	else:
+		return DirectionType.RIGHT
 
 func go_down():
 	assert(is_inside_map_bound(), "Not inside when calling")
@@ -104,7 +114,7 @@ func build():
 	while is_inside_map_bound():
 		
 		if lastdir == DirectionType.DOWN:
-			dir = pick_random_direction()
+			dir = pickDirAwayFromWall()
 		else:
 			dir = tryRandomDown()
 
