@@ -22,6 +22,7 @@ var hp := 2
 
 var _state := "chase"
 var _timer := 0.0
+var _stuck_time := 0.0
 var _has_struck := false
 var _knockback := Vector3.ZERO
 var _strike_dir := Vector3.ZERO
@@ -40,11 +41,13 @@ func _ready() -> void:
 	collision_layer = 0
 	collision_mask = 1
 
+	# A sphere instead of a body-shaped box: long boxes wedge on stall door
+	# frames and wall corners, spheres roll around them.
 	var col := CollisionShape3D.new()
-	var box := BoxShape3D.new()
-	box.size = Vector3(0.9, 0.5, 1.7)
-	col.shape = box
-	col.position.y = 0.25
+	var sphere := SphereShape3D.new()
+	sphere.radius = 0.38
+	col.shape = sphere
+	col.position.y = 0.38
 	add_child(col)
 
 	_visual = Node3D.new()
@@ -134,7 +137,21 @@ func _physics_process(delta: float) -> void:
 	else:
 		velocity.y -= 18.0 * delta
 
+	var wanted_speed := Vector2(velocity.x, velocity.z).length()
 	move_and_slide()
+
+	# Unstick: wanted to move but barely did (wedged on a stall wall or door
+	# frame) -> after a moment, hop sideways toward the corridor center.
+	if _state == "chase" and wanted_speed > 1.0:
+		var actual := Vector2(get_real_velocity().x, get_real_velocity().z).length()
+		if actual < 0.4:
+			_stuck_time += delta
+			if _stuck_time > 0.7:
+				_stuck_time = 0.0
+				var center_dir := signf(-global_position.x)
+				_knockback = Vector3(center_dir * 5.0, 0, 0)
+		else:
+			_stuck_time = 0.0
 
 	var face := Vector3(velocity.x, 0, velocity.z)
 	if _state == "windup" or _state == "strike":

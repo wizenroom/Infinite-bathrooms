@@ -134,6 +134,12 @@ func _physics_process(delta: float) -> void:
 
 	move_and_slide()
 
+	# Failsafe: physics depenetration can very occasionally pop a body through
+	# the ceiling; drop back inside instead of walking on the roof.
+	if global_position.y > 2.4:
+		global_position.y = 0.1
+		velocity.y = 0.0
+
 	# Head bob, increasingly frantic as urgency rises.
 	if input_dir.length() > 0.1 and is_on_floor():
 		_bob_time += delta * (7.0 + urgency * 0.06)

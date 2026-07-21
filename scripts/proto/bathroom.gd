@@ -18,14 +18,21 @@ const CEILING_Y := 2.8
 ## Stall depth is 1.57 from the door plane at x=3.4, so backs end at 4.97.
 const WALL_X := 5.17
 
-## Corridor props: scene, baked offset to cancel (XZ center, Y bottom), scale.
+## Corridor props: scene, baked offset to cancel (XZ center, Y bottom), scale,
+## optional collision box (size + center) so they work as obstacles.
 const PROP_DEFS := [
-	{ "scene": preload("res://assets/janitor_cart.glb"), "off": Vector3(-0.246, 0.0, -0.0905), "scale": 1.0 },
+	{ "scene": preload("res://assets/janitor_cart.glb"), "off": Vector3(-0.246, 0.0, -0.0905), "scale": 1.0,
+		"col_size": Vector3(1.3, 1.1, 0.75), "col_pos": Vector3(0, 0.55, 0) },
 	{ "scene": preload("res://assets/janitor_broom.glb"), "off": Vector3(3.568, 0.0758, -2.4754), "scale": 1.0 },
-	{ "scene": preload("res://assets/wet_floor_sign.glb"), "off": Vector3(4.605, 0.0277, -0.0044), "scale": 0.18 },
-	{ "scene": preload("res://assets/sink_table.glb"), "off": Vector3(10.9226, -0.1394, 36.0145), "scale": 0.13 },
-	{ "scene": preload("res://assets/tree.glb"), "off": Vector3(1.438, -0.0163, -0.9305), "scale": 0.16 },
+	{ "scene": preload("res://assets/wet_floor_sign.glb"), "off": Vector3(4.605, 0.0277, -0.0044), "scale": 0.18,
+		"col_size": Vector3(0.35, 0.85, 0.25), "col_pos": Vector3(0, 0.42, 0) },
+	{ "scene": preload("res://assets/plant.glb"), "off": Vector3(0, -0.32, 0), "scale": 0.6 },
 ]
+
+const SINK_SCENE := preload("res://assets/sink_table.glb")
+const SINK_OFF := Vector3(10.9226, -0.1394, 36.0145)
+const TREE_SCENE := preload("res://assets/tree.glb")
+const TREE_OFF := Vector3(1.438, -0.0163, -0.9305)
 
 const STALL_SPACING := 1.4  # stall models are 1.29 wide; keep the row tight
 const STALL_X := 3.4
@@ -90,6 +97,10 @@ func _ready() -> void:
 				print("ENEMY: ", e.get_script().resource_path.get_file(), " at ", e.global_position)
 			print("player at ", player.global_position, " urgency=", player.urgency)
 			print("dump done")
+		)
+	if dbg == "tree":
+		get_tree().create_timer(1.5).timeout.connect(func() -> void:
+			_spawn_fallen_tree(player.global_position.z - 7.0)
 		)
 	if dbg == "crawler":
 		get_tree().create_timer(1.5).timeout.connect(func() -> void:
@@ -168,6 +179,10 @@ func _try_knock() -> void:
 func _spawn_stall_pair(z: float) -> void:
 	pair_count += 1
 	for side in [-1, 1]:
+		# Now and then a sink station interrupts the stall row.
+		if pair_count > 2 and rng.randf() < 0.1:
+			_spawn_sink(side, z)
+			continue
 		var stall := Stall.new()
 		add_child(stall)
 		stall.position = Vector3(side * STALL_X, 0, z)
@@ -208,27 +223,19 @@ func _spawn_stall_pair(z: float) -> void:
 	if far_enough and stall_count > 20 and rng.randf() < 0.04:
 		_spawn_crawler(Vector3(rng.randf_range(-1.6, 1.6), 0, z))
 
-	# Decorative plant hugging the corridor edge now and then.
-	if rng.randf() < 0.05:
-		var plant: Node3D = PLANT_SCENE.instantiate()
-		var ps := rng.randf_range(0.5, 0.7)
-		plant.scale = Vector3(ps, ps, ps)
-		plant.position = Vector3([-2.5, 2.5][rng.randi_range(0, 1)], 0.32 * ps, z + STALL_SPACING * 0.5)
-		plant.rotation.y = rng.randf_range(0, TAU)
-		add_child(plant)
-
-	# Janitorial clutter: carts, brooms, signs, sinks, trees.
-	if rng.randf() < 0.07:
+	# Janitorial clutter along the corridor edges, sometimes drifting toward
+	# the middle as an actual obstacle to shoulder past.
+	if rng.randf() < 0.18:
 		var def: Dictionary = PROP_DEFS[rng.randi_range(0, PROP_DEFS.size() - 1)]
-		var wrapper := Node3D.new()
-		add_child(wrapper)
-		var s: float = def["scale"]
-		wrapper.scale = Vector3(s, s, s)
-		wrapper.position = Vector3([-2.55, 2.55][rng.randi_range(0, 1)], 0, z + STALL_SPACING * 0.5)
-		wrapper.rotation.y = rng.randf_range(0, TAU)
-		var inst: Node3D = def["scene"].instantiate()
-		inst.position = -def["off"]
-		wrapper.add_child(inst)
+		var px: float = [-2.55, 2.55][rng.randi_range(0, 1)]
+		if rng.randf() < 0.3:
+			px = rng.randf_range(-1.4, 1.4)
+		_spawn_prop(def, Vector3(px, 0, z + STALL_SPACING * 0.5), rng.randf_range(0, TAU))
+
+	# Rarely: an entire fallen tree, jammed diagonally through the building
+	# like it grew somewhere else and ended up here. Pure set dressing.
+	if pair_count > 6 and rng.randf() < 0.025:
+		_spawn_fallen_tree(z)
 
 
 func _roll_outcome() -> Stall.Outcome:
@@ -309,6 +316,85 @@ func _spawn_crawler(pos: Vector3) -> void:
 	var c := ProtoCrawler.new()
 	add_child(c)
 	c.global_position = pos + Vector3(0, 0.1, 0)
+
+
+func _spawn_prop(def: Dictionary, pos: Vector3, yaw: float) -> void:
+	var wrapper := Node3D.new()
+	add_child(wrapper)
+	var s: float = def["scale"]
+	wrapper.scale = Vector3(s, s, s)
+	wrapper.position = pos
+	wrapper.rotation.y = yaw
+	var inst: Node3D = def["scene"].instantiate()
+	inst.position = -def["off"]
+	wrapper.add_child(inst)
+
+	if def.has("col_size"):
+		var body := StaticBody3D.new()
+		add_child(body)
+		body.position = pos
+		body.rotation.y = yaw
+		var col := CollisionShape3D.new()
+		var shape := BoxShape3D.new()
+		shape.size = def["col_size"] * s
+		col.shape = shape
+		col.position = def["col_pos"] * s
+		body.add_child(col)
+
+
+## Sink station in place of a stall: back against the side wall, mirror
+## facing the corridor, with a small collision block.
+func _spawn_sink(side: int, z: float) -> void:
+	const SINK_SCALE := 0.16
+	# Model depth ~5.3 units * scale ~ 0.85; keep its back at the wall.
+	var x: float = side * (WALL_X - 0.45)
+	# Two basins side by side, filling the width the missing stall leaves.
+	for dz in [-0.35, 0.35]:
+		var wrapper := Node3D.new()
+		add_child(wrapper)
+		wrapper.scale = Vector3(SINK_SCALE, SINK_SCALE, SINK_SCALE)
+		wrapper.position = Vector3(x, 0, z + dz)
+		# Basin lip faces -Z in model space (like the stall doors); turn it
+		# toward the corridor center.
+		wrapper.rotation.y = side * PI / 2.0
+		var inst: Node3D = SINK_SCENE.instantiate()
+		inst.position = -SINK_OFF
+		wrapper.add_child(inst)
+
+	var body := StaticBody3D.new()
+	add_child(body)
+	body.position = Vector3(x, 0.6, z)
+	var col := CollisionShape3D.new()
+	var shape := BoxShape3D.new()
+	shape.size = Vector3(0.8, 1.2, 0.8)
+	col.shape = shape
+	body.add_child(col)
+
+	# A greasy little mirror light so the station reads from afar.
+	var lamp := OmniLight3D.new()
+	lamp.light_color = Color(0.8, 0.85, 1.0)
+	lamp.light_energy = 0.6
+	lamp.omni_range = 2.5
+	lamp.position = Vector3(x, 1.8, z)
+	add_child(lamp)
+
+
+## A huge tree fallen through the bathroom, clipping floor and ceiling.
+## No collision on purpose - it's backrooms set dressing, not an obstacle.
+func _spawn_fallen_tree(z: float) -> void:
+	var wrapper := Node3D.new()
+	add_child(wrapper)
+	var s := rng.randf_range(0.9, 1.3)
+	wrapper.scale = Vector3(s, s, s)
+	wrapper.position = Vector3(rng.randf_range(-2.0, 2.0), rng.randf_range(0.2, 1.2), z)
+	wrapper.rotation = Vector3(
+		rng.randf_range(-0.5, 0.5) + [-1.9, 1.9][rng.randi_range(0, 1)],
+		rng.randf_range(0, TAU),
+		rng.randf_range(-0.4, 0.4),
+	)
+	var inst: Node3D = TREE_SCENE.instantiate()
+	inst.position = -Vector3(TREE_OFF.x, 4.5, TREE_OFF.z)  # pivot near trunk middle
+	wrapper.add_child(inst)
 
 
 func _on_player_hit() -> void:
