@@ -1,0 +1,8 @@
+[gd_scene format=3 uid="uid://c2486ybniqep5"]
+
+[ext_resource type="PackedScene" uid="uid://ckmp6df6w0kel" path="res://assets/ceiling_tile.glb" id="1_mvs4b"]
+
+[node name="ceiling_tile" unique_id=1104442629 instance=ExtResource("1_mvs4b")]
+
+[node name="Cube_005" parent="." index="0" unique_id=524968027]
+transform = Transform3D(0.5, 0, 0, 0, 0.005, 0, 0, 0, 0.5, 0.5, 0, 0.5)

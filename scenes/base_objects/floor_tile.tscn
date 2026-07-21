@@ -1,0 +1,8 @@
+[gd_scene format=3 uid="uid://d2cl357p6d24u"]
+
+[ext_resource type="PackedScene" uid="uid://dtg2f3qqi2vml" path="res://assets/floor_tile.glb" id="1_dalx4"]
+
+[node name="floor_tile" unique_id=345918832 instance=ExtResource("1_dalx4")]
+
+[node name="Cube_005" parent="." index="0" unique_id=551349330]
+transform = Transform3D(0.5, 0, 0, 0, 0.005, 0, 0, 0, 0.5, 0.5, 0, 0.5)
