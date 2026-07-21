@@ -3,6 +3,12 @@ extends CharacterBody3D
 ## The thing that crawls out of "vacant" stalls. Faster than the occupants,
 ## lower to the ground (harder to notice), lunges without much warning.
 ## Two fist hits (one plunger hit) to kill.
+##
+## The model is 1.8M triangles with a 222-bone rig, so instances are POOLED:
+## the manager builds them once at startup and wakes/sleeps them, instead of
+## paying the instantiate hitch mid-game. The rig also animates in stop-motion
+## (fixed low tick rate) to keep the per-frame bone update cost down - which
+## happens to look creepier anyway.
 
 const CRAWLER_SCENE := preload("res://assets/crawler.glb")
 
@@ -17,8 +23,11 @@ const AGGRO_RANGE := 14.0
 const WINDUP_TIME := 0.25
 const STRIKE_TIME := 0.2
 const RECOVER_TIME := 0.8
+## Stop-motion animation tick (seconds per pose).
+const ANIM_STEP := 0.1
 
 var hp := 2
+var sleeping := true
 
 var _state := "chase"
 var _timer := 0.0
@@ -26,7 +35,10 @@ var _stuck_time := 0.0
 var _has_struck := false
 var _knockback := Vector3.ZERO
 var _strike_dir := Vector3.ZERO
+var _anim_accum := 0.0
+var _anim_speed := 1.6
 var _visual: Node3D
+var _col: CollisionShape3D
 var _anim: AnimationPlayer
 var _meshes: Array = []
 var _flash_mat: StandardMaterial3D
@@ -34,9 +46,6 @@ var _player: Node3D
 
 
 func _ready() -> void:
-	add_to_group("enemies")
-	add_to_group("crawlers")
-
 	# Nothing collides WITH the crawler (layer 0): the player would otherwise
 	# get shoved around or end up standing on it. It still hits via the lunge.
 	collision_layer = 0
@@ -44,12 +53,12 @@ func _ready() -> void:
 
 	# A sphere instead of a body-shaped box: long boxes wedge on stall door
 	# frames and wall corners, spheres roll around them.
-	var col := CollisionShape3D.new()
+	_col = CollisionShape3D.new()
 	var sphere := SphereShape3D.new()
 	sphere.radius = 0.38
-	col.shape = sphere
-	col.position.y = 0.38
-	add_child(col)
+	_col.shape = sphere
+	_col.position.y = 0.38
+	add_child(_col)
 
 	_visual = Node3D.new()
 	add_child(_visual)
@@ -77,10 +86,48 @@ func _ready() -> void:
 		_anim = anims[0]
 		if _anim.has_animation("Crawl"):
 			_anim.get_animation("Crawl").loop_mode = Animation.LOOP_LINEAR
-			_anim.play("Crawl", 0.0, 1.6)
+			# Manual mode: we advance it ourselves in coarse stop-motion steps.
+			_anim.callback_mode_process = AnimationMixer.ANIMATION_CALLBACK_MODE_PROCESS_MANUAL
+			_anim.play("Crawl")
+
+	sleep()
+
+
+## Park the crawler: invisible, no physics, no animation, no group presence.
+func sleep() -> void:
+	sleeping = true
+	visible = false
+	set_physics_process(false)
+	_col.set_deferred("disabled", true)
+	remove_from_group("enemies")
+	remove_from_group("crawlers")
+
+
+## Bring a pooled crawler back to life at the given position.
+func wake(pos: Vector3) -> void:
+	sleeping = false
+	hp = 2
+	_state = "chase"
+	_knockback = Vector3.ZERO
+	_stuck_time = 0.0
+	_visual.rotation = Vector3.ZERO
+	_visual.position = Vector3.ZERO
+	global_position = pos
+	visible = true
+	set_physics_process(true)
+	_col.set_deferred("disabled", false)
+	add_to_group("enemies")
+	add_to_group("crawlers")
 
 
 func _physics_process(delta: float) -> void:
+	# Stop-motion: advance the heavy 222-bone rig at ANIM_STEP intervals only.
+	if _anim and _state != "dead":
+		_anim_accum += delta * _anim_speed
+		if _anim_accum >= ANIM_STEP:
+			_anim.advance(_anim_accum)
+			_anim_accum = 0.0
+
 	if _state == "dead":
 		return
 	if not is_instance_valid(_player):
@@ -98,13 +145,11 @@ func _physics_process(delta: float) -> void:
 			if dist > AGGRO_RANGE:
 				velocity.x = _knockback.x
 				velocity.z = _knockback.z
-				if _anim:
-					_anim.speed_scale = 0.4
+				_anim_speed = 0.4
 			else:
 				velocity.x = dir.x * SPEED + _knockback.x
 				velocity.z = dir.z * SPEED + _knockback.z
-				if _anim:
-					_anim.speed_scale = 1.6
+				_anim_speed = 1.6
 			if dist < 1.7:
 				_state = "windup"
 				_timer = WINDUP_TIME
@@ -186,13 +231,10 @@ func take_hit(dmg: int, from_dir: Vector3) -> void:
 func _die() -> void:
 	_state = "dead"
 	remove_from_group("enemies")
-	if _anim:
-		_anim.pause()
-	for child in get_children():
-		if child is CollisionShape3D:
-			child.set_deferred("disabled", true)
+	_col.set_deferred("disabled", true)
 	var tw := create_tween()
 	tw.tween_property(_visual, "rotation:z", PI, 0.35).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 	tw.tween_interval(0.4)
 	tw.tween_property(_visual, "position:y", -0.9, 0.5).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
-	tw.tween_callback(queue_free)
+	# Back into the pool instead of freeing; the manager reuses us.
+	tw.tween_callback(sleep)

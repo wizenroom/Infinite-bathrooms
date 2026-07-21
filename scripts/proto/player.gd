@@ -6,12 +6,15 @@ extends CharacterBody3D
 
 signal died
 signal hit
+signal inventory_changed
 
 const PLUNGER_SCENE := preload("res://assets/plunger.glb")
 const ARM_SCENE := preload("res://assets/arm.glb")
+const BROOM_SCENE := preload("res://assets/janitor_broom.glb")
 
 ## Baked center of the arm mesh (cancelled at mount time).
 const ARM_CENTER := Vector3(-7.351, 10.096, -0.350)
+const BROOM_CENTER := Vector3(3.568, 0.0758, -2.4754)
 
 const BASE_SPEED := 4.6
 const PANIC_SPEED := 2.2
@@ -25,6 +28,10 @@ var attack_range := 2.2
 var attack_cooldown := 0.5
 var has_plunger := false
 
+## Four slots; "" = empty. Press 1-4 to equip a slot (empty slot = bare fists).
+var inventory: Array = ["", "", "", ""]
+var equipped_slot := -1
+
 var _attack_timer := 0.0
 var _knockback := Vector3.ZERO
 var _dead := false
@@ -35,6 +42,7 @@ var _cam: Camera3D
 var _arm_pivot: Node3D
 var _arm: Node3D
 var _plunger: Node3D = null
+var _broom: Node3D = null
 
 
 func _ready() -> void:
@@ -95,6 +103,12 @@ func _unhandled_input(event: InputEvent) -> void:
 			Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 	elif event is InputEventKey and event.pressed and event.physical_keycode == KEY_ESCAPE:
 		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	elif event is InputEventKey and event.pressed and not event.echo:
+		match event.physical_keycode:
+			KEY_1: _equip(0)
+			KEY_2: _equip(1)
+			KEY_3: _equip(2)
+			KEY_4: _equip(3)
 
 
 func _physics_process(delta: float) -> void:
@@ -188,17 +202,65 @@ func take_hit(from_dir: Vector3) -> void:
 
 
 func give_plunger() -> void:
-	if has_plunger:
-		return
-	has_plunger = true
-	# Heavier swings: more damage but slower and shorter reach than before.
-	attack_damage = 2
-	attack_range = 2.5
-	attack_cooldown = 0.75
+	add_item("plunger")
 
-	_arm.visible = false
-	_plunger = PLUNGER_SCENE.instantiate()
-	_plunger.scale = Vector3(1.2, 1.2, 1.2)
-	_plunger.position = Vector3(0, -0.12, 0.05)
-	_plunger.rotation_degrees = Vector3(-70, 0, 0)
-	_arm_pivot.add_child(_plunger)
+
+## Put an item into the first free slot and equip it. Returns false when the
+## inventory is full or the item is already carried (weapons don't stack).
+func add_item(item: String) -> bool:
+	if item in inventory:
+		return false
+	for i in inventory.size():
+		if inventory[i] == "":
+			inventory[i] = item
+			if item == "plunger":
+				has_plunger = true
+			_equip(i)
+			return true
+	return false
+
+
+## Equip whatever sits in the given slot; an empty slot means bare fists.
+func _equip(slot: int) -> void:
+	equipped_slot = slot
+	var item: String = inventory[slot] if slot >= 0 else ""
+
+	_arm.visible = item == ""
+	if _plunger:
+		_plunger.visible = item == "plunger"
+	if _broom:
+		_broom.visible = item == "broom"
+
+	match item:
+		"plunger":
+			if not _plunger:
+				_plunger = PLUNGER_SCENE.instantiate()
+				_plunger.scale = Vector3(1.2, 1.2, 1.2)
+				_plunger.position = Vector3(0, -0.12, 0.05)
+				_plunger.rotation_degrees = Vector3(-70, 0, 0)
+				_arm_pivot.add_child(_plunger)
+			# Heavy swings: more damage but slow.
+			attack_damage = 2
+			attack_range = 2.5
+			attack_cooldown = 0.75
+		"broom":
+			if not _broom:
+				_broom = Node3D.new()
+				_broom.scale = Vector3(0.55, 0.55, 0.55)
+				# Lance grip: bristle head forward, handle back to the hand.
+				_broom.position = Vector3(-0.08, -0.18, -0.3)
+				_broom.rotation_degrees = Vector3(70, 10, 0)
+				_arm_pivot.add_child(_broom)
+				var inst: Node3D = BROOM_SCENE.instantiate()
+				inst.position = -BROOM_CENTER
+				_broom.add_child(inst)
+			# Long and quick, but it only sweeps for 1 damage.
+			attack_damage = 1
+			attack_range = 3.1
+			attack_cooldown = 0.35
+		_:
+			attack_damage = 1
+			attack_range = 2.2
+			attack_cooldown = 0.5
+
+	inventory_changed.emit()

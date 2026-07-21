@@ -23,7 +23,8 @@ const WALL_X := 5.17
 const PROP_DEFS := [
 	{ "scene": preload("res://assets/janitor_cart.glb"), "off": Vector3(-0.246, 0.0, -0.0905), "scale": 1.0,
 		"col_size": Vector3(1.3, 1.1, 0.75), "col_pos": Vector3(0, 0.55, 0) },
-	{ "scene": preload("res://assets/janitor_broom.glb"), "off": Vector3(3.568, 0.0758, -2.4754), "scale": 1.0 },
+	{ "scene": preload("res://assets/janitor_broom.glb"), "off": Vector3(3.568, 0.0758, -2.4754), "scale": 1.0,
+		"pickup_item": "broom" },
 	{ "scene": preload("res://assets/wet_floor_sign.glb"), "off": Vector3(4.605, 0.0277, -0.0044), "scale": 0.18,
 		"col_size": Vector3(0.35, 0.85, 0.25), "col_pos": Vector3(0, 0.42, 0) },
 	{ "scene": preload("res://assets/plant.glb"), "off": Vector3(0, -0.32, 0), "scale": 0.6 },
@@ -72,6 +73,13 @@ var _overlay_label: Label
 var _spawned: Array = []  # [{ "z": float, "node": Node }]
 var _prop_merge_cache := {}
 
+## Crawlers are pooled: the 1.8M-triangle model hitches hard if instantiated
+## mid-game, so both instances are built once here and woken up on demand.
+var _crawler_pool: Array = []
+
+var _slot_frames: Array = []
+var _slot_labels: Array = []
+
 
 func _ready() -> void:
 	rng.randomize()
@@ -85,6 +93,12 @@ func _ready() -> void:
 	player.global_position = Vector3(0, 0.1, 0)
 	player.died.connect(_on_player_died)
 	player.hit.connect(_on_player_hit)
+	player.inventory_changed.connect(_refresh_inventory)
+
+	for i in 2:
+		var c := ProtoCrawler.new()
+		add_child(c)
+		_crawler_pool.append(c)
 
 	_show_message("Every stall is OCCUPIED... except one. Find it. (E = knock)", 4.5)
 
@@ -109,6 +123,14 @@ func _ready() -> void:
 			_spawn_crawler(player.global_position + Vector3(-0.8, 0, -16.0))
 			_spawn_crawler(player.global_position + Vector3(0.8, 0, -18.0))
 		)
+		# Report FPS while everything is alive, then bail (CI-style check).
+		for t in [3.0, 4.5, 6.0, 7.5]:
+			get_tree().create_timer(t).timeout.connect(func() -> void:
+				print("STRESS fps=", Engine.get_frames_per_second())
+			)
+		get_tree().create_timer(8.5).timeout.connect(func() -> void:
+			get_tree().quit()
+		)
 	if dbg == "tree":
 		get_tree().create_timer(1.5).timeout.connect(func() -> void:
 			_spawn_fallen_tree(player.global_position.z - 7.0)
@@ -116,6 +138,11 @@ func _ready() -> void:
 	if dbg == "crawler":
 		get_tree().create_timer(1.5).timeout.connect(func() -> void:
 			_spawn_crawler(player.global_position + Vector3(0.4, 0, -3.5))
+		)
+	if dbg == "inv":
+		get_tree().create_timer(1.0).timeout.connect(func() -> void:
+			player.add_item("plunger")
+			player.add_item("broom")
 		)
 	if dbg == "top":
 		get_tree().create_timer(1.0).timeout.connect(func() -> void:
@@ -329,13 +356,13 @@ func _spawn_enemy(pos: Vector3) -> void:
 
 
 func _spawn_crawler(pos: Vector3) -> void:
-	# The crawler model is 1.8M triangles; more than 2 alive tanks the GPU.
-	if get_tree().get_nodes_in_group("crawlers").size() >= 2:
-		_spawn_enemy(pos)
-		return
-	var c := ProtoCrawler.new()
-	add_child(c)
-	c.global_position = pos + Vector3(0, 0.1, 0)
+	# Wake a pooled crawler; when both are already loose, a regular occupant
+	# steps in instead (more than 2 of these models alive tanks the GPU).
+	for c in _crawler_pool:
+		if c.sleeping:
+			c.wake(pos + Vector3(0, 0.1, 0))
+			return
+	_spawn_enemy(pos)
 
 
 func _track(node: Node, z: float) -> void:
@@ -364,9 +391,13 @@ func _prune_behind() -> void:
 	_spawned = kept
 
 	# Enemies abandoned far behind stop mattering; cull them too.
+	# Pooled crawlers go back to sleep instead of being freed.
 	for e in get_tree().get_nodes_in_group("enemies"):
 		if e.global_position.z > player.global_position.z + 20.0:
-			e.queue_free()
+			if e is ProtoCrawler:
+				e.sleep()
+			else:
+				e.queue_free()
 
 
 func _spawn_prop(def: Dictionary, pos: Vector3, yaw: float) -> void:
@@ -399,6 +430,23 @@ func _spawn_prop(def: Dictionary, pos: Vector3, yaw: float) -> void:
 		col.shape = shape
 		col.position = def["col_pos"] * s
 		body.add_child(col)
+
+	# Pickup props (the broom): walk over it to grab it into the inventory.
+	if def.has("pickup_item"):
+		var item: String = def["pickup_item"]
+		var area := Area3D.new()
+		wrapper.add_child(area)
+		var acol := CollisionShape3D.new()
+		var asphere := SphereShape3D.new()
+		asphere.radius = 0.8
+		acol.shape = asphere
+		acol.position.y = 0.4
+		area.add_child(acol)
+		area.body_entered.connect(func(body_in: Node3D) -> void:
+			if body_in is ProtoPlayer and body_in.add_item(item):
+				_show_message("Picked up the %s! (1-4 to switch items)" % item.to_upper())
+				wrapper.queue_free()
+		)
 
 
 ## Sink station in place of a stall: back against the side wall, mirror
@@ -444,26 +492,92 @@ func _spawn_sink(side: int, z: float) -> void:
 	_track(lamp, z)
 
 
-## A huge tree fallen through the bathroom, clipping floor and ceiling.
-## No collision on purpose - it's backrooms set dressing, not an obstacle.
+## Random-tint canopy palette: mostly plausible greens, occasionally wrong.
+const TREE_CANOPY_TINTS := [
+	Color(0.25, 0.55, 0.2), Color(0.15, 0.4, 0.18), Color(0.7, 0.45, 0.12),
+	Color(0.65, 0.6, 0.2), Color(0.55, 0.2, 0.5), Color(0.3, 0.5, 0.55),
+]
+const TREE_TRUNK_TINTS := [
+	Color(0.4, 0.28, 0.18), Color(0.35, 0.32, 0.3), Color(0.45, 0.22, 0.15),
+]
+
+var _tree_noise_tex: NoiseTexture2D = null
+
+
+## A huge tree jammed through the bathroom, clipping floor and ceiling.
+## Two flavors: steeply LEANING (trunk is a solid obstacle to shoulder past)
+## and fully FALLEN, near-horizontal overhead (set dressing only - a collidable
+## horizontal trunk would wall off the corridor and soft-lock the run).
 func _spawn_fallen_tree(z: float) -> void:
 	var wrapper := Node3D.new()
 	add_child(wrapper)
 	_track(wrapper, z)
 	var s := rng.randf_range(0.9, 1.3)
 	wrapper.scale = Vector3(s, s, s)
-	wrapper.position = Vector3(rng.randf_range(-2.0, 2.0), rng.randf_range(0.2, 1.2), z)
-	wrapper.rotation = Vector3(
-		rng.randf_range(-0.5, 0.5) + [-1.9, 1.9][rng.randi_range(0, 1)],
-		rng.randf_range(0, TAU),
-		rng.randf_range(-0.4, 0.4),
-	)
+	var leaning := rng.randf() < 0.6
+	if leaning:
+		wrapper.position = Vector3(rng.randf_range(-1.8, 1.8), rng.randf_range(0.0, 0.7), z)
+		wrapper.rotation = Vector3(
+			rng.randf_range(-0.55, 0.55),
+			rng.randf_range(0, TAU),
+			rng.randf_range(-0.55, 0.55),
+		)
+	else:
+		wrapper.position = Vector3(rng.randf_range(-2.0, 2.0), rng.randf_range(0.2, 1.2), z)
+		wrapper.rotation = Vector3(
+			rng.randf_range(-0.5, 0.5) + [-1.9, 1.9][rng.randi_range(0, 1)],
+			rng.randf_range(0, TAU),
+			rng.randf_range(-0.4, 0.4),
+		)
 	var inst: Node3D = TREE_SCENE.instantiate()
 	inst.position = -Vector3(TREE_OFF.x, 4.5, TREE_OFF.z)  # pivot near trunk middle
 	wrapper.add_child(inst)
-	# 345k triangles; stop rendering it once the fog has swallowed it.
-	for mi in inst.find_children("*", "MeshInstance3D", true, false):
+
+	# Random retro texture: pixel noise + a random tint per tree. The mesh
+	# with the biggest bounds is the canopy, the rest is trunk.
+	var meshes := inst.find_children("*", "MeshInstance3D", true, false)
+	var canopy: MeshInstance3D = null
+	var best_vol := -1.0
+	for mi in meshes:
+		var v: float = mi.get_aabb().get_volume()
+		if v > best_vol:
+			best_vol = v
+			canopy = mi
+	var canopy_tint: Color = TREE_CANOPY_TINTS[rng.randi_range(0, TREE_CANOPY_TINTS.size() - 1)]
+	var trunk_tint: Color = TREE_TRUNK_TINTS[rng.randi_range(0, TREE_TRUNK_TINTS.size() - 1)]
+	for mi in meshes:
+		mi.material_override = _tree_retro_material(canopy_tint if mi == canopy else trunk_tint)
+		# 345k triangles; stop rendering it once the fog has swallowed it.
 		mi.visibility_range_end = 42.0
+
+	# Trunk collider along the tree's local up-axis (pivot sits mid-trunk).
+	if leaning:
+		var body := StaticBody3D.new()
+		wrapper.add_child(body)
+		var col := CollisionShape3D.new()
+		var cap := CapsuleShape3D.new()
+		cap.radius = 0.3
+		cap.height = 9.0
+		col.shape = cap
+		body.add_child(col)
+
+
+func _tree_retro_material(tint: Color) -> StandardMaterial3D:
+	if _tree_noise_tex == null:
+		var noise := FastNoiseLite.new()
+		noise.frequency = 0.2
+		_tree_noise_tex = NoiseTexture2D.new()
+		_tree_noise_tex.noise = noise
+		_tree_noise_tex.width = 48
+		_tree_noise_tex.height = 48
+	var mat := StandardMaterial3D.new()
+	mat.albedo_texture = _tree_noise_tex
+	mat.albedo_color = tint
+	# Chunky nearest-filtered noise = the retro look.
+	mat.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
+	mat.uv1_scale = Vector3(4, 4, 4)
+	mat.roughness = 1.0
+	return mat
 
 
 func _on_player_hit() -> void:
@@ -602,10 +716,52 @@ func _build_hud() -> void:
 	hint.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
 	hint.offset_top = -44
 	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	hint.text = "WASD move  ·  mouse look  ·  LMB / Space swing  ·  E knock"
+	hint.text = "WASD move  ·  mouse look  ·  LMB / Space swing  ·  E knock  ·  1-4 items"
 	hint.add_theme_font_size_override("font_size", 16)
 	hint.modulate = Color(1, 1, 1, 0.55)
 	hud.add_child(hint)
+
+	# Inventory: four painted slot frames, nearest-filtered so the scaled-down
+	# brush strokes go chunky instead of blurry (matches the retro filter).
+	var slot_tex := AtlasTexture.new()
+	# The provided slot art is a JPEG (black canvas, no alpha) despite the
+	# original .png name; crop the painted frame out of the canvas.
+	slot_tex.atlas = load("res://assets/inventory_slot.jpg")
+	slot_tex.region = Rect2(195, 175, 505, 540)
+	var row := HBoxContainer.new()
+	row.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_LEFT)
+	row.offset_left = 20
+	row.offset_top = -140
+	row.offset_bottom = -60
+	row.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	row.add_theme_constant_override("separation", 10)
+	hud.add_child(row)
+	for i in 4:
+		var frame := TextureRect.new()
+		frame.texture = slot_tex
+		frame.custom_minimum_size = Vector2(76, 80)
+		frame.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		frame.stretch_mode = TextureRect.STRETCH_SCALE
+		frame.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		row.add_child(frame)
+
+		var num := Label.new()
+		num.text = str(i + 1)
+		num.position = Vector2(10, 4)
+		num.add_theme_font_size_override("font_size", 13)
+		num.modulate = Color(1, 1, 1, 0.6)
+		frame.add_child(num)
+
+		var lab := Label.new()
+		lab.set_anchors_preset(Control.PRESET_FULL_RECT)
+		lab.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		lab.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		lab.add_theme_font_size_override("font_size", 12)
+		lab.modulate = Color(0.75, 1.0, 0.75)
+		frame.add_child(lab)
+
+		_slot_frames.append(frame)
+		_slot_labels.append(lab)
 
 	_overlay = ColorRect.new()
 	_overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -619,6 +775,16 @@ func _build_hud() -> void:
 	_overlay_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	_overlay_label.add_theme_font_size_override("font_size", 40)
 	_overlay.add_child(_overlay_label)
+
+
+func _refresh_inventory() -> void:
+	if not player:
+		return
+	for i in _slot_frames.size():
+		var item: String = player.inventory[i]
+		_slot_labels[i].text = item.to_upper()
+		var selected: bool = player.equipped_slot == i and item != ""
+		_slot_frames[i].modulate = Color(1, 1, 1, 1) if selected else Color(0.7, 0.7, 0.7, 0.65)
 
 
 func _show_message(text: String, duration: float = 2.5) -> void:
