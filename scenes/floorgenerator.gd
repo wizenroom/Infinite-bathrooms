@@ -11,7 +11,7 @@ const TileScene = preload("res://scenes/base_objects/floor_tile.tscn")
 const ProgressTileScene = preload("res://scenes/base_objects/progress_tile.tscn")
 const TILE_LIBRARY_SCENE = preload("res://scenes/floors/tile_library.tscn")
 
-const TILE_SIZE := 50
+const TILE_SIZE := 100
 
 var tile_library : TileLibrary
 const tiletype = MapEnums.TileType
