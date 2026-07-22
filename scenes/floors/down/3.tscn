@@ -1,6 +1,8 @@
-[gd_scene format=3 uid="uid://c28l2jvso4gpm"]
+[gd_scene format=3 uid="uid://cgs7rua1t7bye"]
 
-[ext_resource type="PackedScene" uid="uid://d2cl357p6d24u" path="res://scenes/base_objects/floor_tile.tscn" id="1_kwbbp"]
+[ext_resource type="PackedScene" uid="uid://d2cl357p6d24u" path="res://scenes/base_objects/floor_tile.tscn" id="1_lobb5"]
+[ext_resource type="PackedScene" uid="uid://l0lo3nuk7jlv" path="res://scenes/base_objects/block.tscn" id="2_jo0ku"]
+[ext_resource type="PackedScene" uid="uid://c5cqqrm01lda2" path="res://scenes/base_objects/wedge.tscn" id="3_jo0ku"]
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_1swbr"]
 size = Vector3(44, 10, 1)
@@ -50,7 +52,7 @@ transform = Transform3D(100, 0, 0, 0, 100, 0, 0, 0, 100, 0, 0, 0)
 [node name="Node3D" type="Node3D" parent="." unique_id=2056889693]
 transform = Transform3D(0.01, 0, 0, 0, 0.01, 0, 0, 0, 0.01, -0.5, 0, -0.5)
 
-[node name="floor_tile" parent="Node3D" unique_id=345918832 instance=ExtResource("1_kwbbp")]
+[node name="floor_tile" parent="Node3D" unique_id=345918832 instance=ExtResource("1_lobb5")]
 transform = Transform3D(100, 0, 0, 0, 100, 0, 0, 0, 100, 0, 0, 0)
 
 [node name="Entrance" type="Node3D" parent="Node3D" unique_id=638311329]
@@ -100,6 +102,32 @@ transform = Transform3D(-4.371139e-08, 0, -1, 0, 1, 0, 1, 0, -4.371139e-08, 0.50
 shape = SubResource("BoxShape3D_lb86o")
 
 [node name="MeshInstance3D2" type="MeshInstance3D" parent="Node3D/Entrance2/Wall2" unique_id=206203549]
+transform = Transform3D(-4.371139e-08, 0, -1, 0, 1, 0, 1, 0, -4.371139e-08, 0.5000038, 4.9999995, 23.000002)
+mesh = SubResource("BoxMesh_4iftf")
+skeleton = NodePath("../../../..")
+
+[node name="Entrance3" type="Node3D" parent="Node3D" unique_id=1044857454]
+transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, 7.6293945e-06, 0, 100.00001)
+
+[node name="Wall1" type="StaticBody3D" parent="Node3D/Entrance3" unique_id=97851369]
+transform = Transform3D(-4.371139e-08, 0, -1, 0, 1, 0, 1, 0, -4.371139e-08, 0.9999978, 0, 99)
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Node3D/Entrance3/Wall1" unique_id=1078382466]
+transform = Transform3D(1, 0, -3.5527137e-15, 0, 1, 0, 3.5527137e-15, 0, 1, -22.000011, 4.9999995, 0.50001526)
+shape = SubResource("BoxShape3D_1swbr")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="Node3D/Entrance3/Wall1" unique_id=994395231]
+transform = Transform3D(1, 0, -3.5527137e-15, 0, 1, 0, 3.5527137e-15, 0, 1, -22.000006, 4.9999995, 0.5000076)
+mesh = SubResource("BoxMesh_w4ap0")
+skeleton = NodePath("../../../..")
+
+[node name="Wall2" type="StaticBody3D" parent="Node3D/Entrance3" unique_id=612826725]
+
+[node name="CollisionShape3D2" type="CollisionShape3D" parent="Node3D/Entrance3/Wall2" unique_id=1040189501]
+transform = Transform3D(-4.371139e-08, 0, -1, 0, 1, 0, 1, 0, -4.371139e-08, 0.5000038, 4.9999995, 22.999996)
+shape = SubResource("BoxShape3D_lb86o")
+
+[node name="MeshInstance3D2" type="MeshInstance3D" parent="Node3D/Entrance3/Wall2" unique_id=172365505]
 transform = Transform3D(-4.371139e-08, 0, -1, 0, 1, 0, 1, 0, -4.371139e-08, 0.5000038, 4.9999995, 23.000002)
 mesh = SubResource("BoxMesh_4iftf")
 skeleton = NodePath("../../../..")
@@ -168,18 +196,69 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.99999905, 4.9999995, 0.5)
 shape = SubResource("BoxShape3D_w4ap0")
 
 [node name="MeshInstance3D" type="MeshInstance3D" parent="Node3D/Wall3" unique_id=2032368054]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.99999857, 4.9999995, 0.5)
-mesh = SubResource("BoxMesh_7wfm7")
-skeleton = NodePath("../../..")
-
-[node name="Wall4" type="StaticBody3D" parent="Node3D" unique_id=740326239]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 49, 0, 99)
-
-[node name="CollisionShape3D" type="CollisionShape3D" parent="Node3D/Wall4" unique_id=2045735100]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.99999905, 4.9999995, 0.5)
-shape = SubResource("BoxShape3D_w4ap0")
-
-[node name="MeshInstance3D" type="MeshInstance3D" parent="Node3D/Wall4" unique_id=224892520]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.99999857, 4.9999995, 0.5)
 mesh = SubResource("BoxMesh_7wfm7")
 skeleton = NodePath("../../..")
+
+[node name="Block3" parent="Node3D" unique_id=1575815163 instance=ExtResource("2_jo0ku")]
+transform = Transform3D(-3.0806505e-06, 0, -8.451609, 0, 9.053045, 0, 32.672894, 0, 6.797787e-07, 77, 1.5, 50.499992)
+
+[node name="Block4" parent="Node3D" unique_id=428948075 instance=ExtResource("2_jo0ku")]
+transform = Transform3D(18.151606, 0, 1.0492103e-06, 0, 9.053044, 0, 9.180403e-07, 0, 8.451609, 90.5, 1.5, 62.999992)
+
+[node name="Block6" parent="Node3D" unique_id=1390410505 instance=ExtResource("2_jo0ku")]
+transform = Transform3D(27.771957, 0, 1.0492101e-06, 0, 9.053044, 0, 1.4046017e-06, 0, 8.451608, 68, 1.5, 50.499992)
+
+[node name="Block19" parent="Node3D" unique_id=1551652930 instance=ExtResource("2_jo0ku")]
+transform = Transform3D(27.771957, 0, 1.0492101e-06, 0, 0.90530413, 0, 1.4046017e-06, 0, 8.451608, 50.5, 6, 50.499992)
+
+[node name="Block5" parent="Node3D" unique_id=867168667 instance=ExtResource("2_jo0ku")]
+transform = Transform3D(18.151606, 0, 1.0492103e-06, 0, 9.053044, 0, 9.180403e-07, 0, 8.451609, 90.5, 1.5, 37.999992)
+
+[node name="Block7" parent="Node3D" unique_id=1825002380 instance=ExtResource("2_jo0ku")]
+transform = Transform3D(6.266839e-06, 0, 8.451607, 0, 9.053044, 0, -34.488052, 0, 5.9084403e-08, 22.5, 1.5, 50.499992)
+
+[node name="Block8" parent="Node3D" unique_id=1451784825 instance=ExtResource("2_jo0ku")]
+transform = Transform3D(-18.151606, 0, -3.1034705e-07, 0, 9.053044, 0, -2.5049037e-06, 0, -8.451608, 9.5, 1.5, 37.999992)
+
+[node name="Block9" parent="Node3D" unique_id=1807260376 instance=ExtResource("2_jo0ku")]
+transform = Transform3D(-27.771957, 0, -3.103471e-07, 0, 9.053043, 0, -3.8325034e-06, 0, -8.451608, 32, 1.5, 50.499992)
+
+[node name="Block10" parent="Node3D" unique_id=1643557617 instance=ExtResource("2_jo0ku")]
+transform = Transform3D(-18.151606, 0, -3.1034705e-07, 0, 9.053044, 0, -2.5049037e-06, 0, -8.451608, 9.5, 1.5, 62.999992)
+
+[node name="Block11" parent="Node3D" unique_id=1137574400 instance=ExtResource("2_jo0ku")]
+transform = Transform3D(-26.138304, 0, -3.103469e-08, 0, 9.053044, 0, -3.6070605e-06, 0, -0.8451604, 13.5, 3, 66.99999)
+
+[node name="Block12" parent="Node3D" unique_id=1878278030 instance=ExtResource("2_jo0ku")]
+transform = Transform3D(-26.138304, 0, -3.103469e-08, 0, 9.053044, 0, -3.6070605e-06, 0, -0.8451604, 13.5, 3, 32.999992)
+
+[node name="Block13" parent="Node3D" unique_id=1071295280 instance=ExtResource("2_jo0ku")]
+transform = Transform3D(-26.138304, 0, -3.103469e-08, 0, 9.053044, 0, -3.6070605e-06, 0, -0.8451604, 86.5, 3, 32.999992)
+
+[node name="Block14" parent="Node3D" unique_id=983723554 instance=ExtResource("2_jo0ku")]
+transform = Transform3D(-26.138304, 0, -3.103469e-08, 0, 9.053044, 0, -3.6070605e-06, 0, -0.8451604, 86.5, 3, 66.99999)
+
+[node name="Block15" parent="Node3D" unique_id=902445646 instance=ExtResource("2_jo0ku")]
+transform = Transform3D(-20.126493, 0, -3.103469e-08, 0, 9.053044, 0, -2.7774367e-06, 0, -0.8451604, 63.5, 3, 53.999992)
+
+[node name="Block18" parent="Node3D" unique_id=2087982211 instance=ExtResource("2_jo0ku")]
+transform = Transform3D(-20.126493, 0, -3.103469e-08, 0, 9.053044, 0, -2.7774367e-06, 0, -0.8451604, 36.5, 3, 53.999992)
+
+[node name="Block16" parent="Node3D" unique_id=412352908 instance=ExtResource("2_jo0ku")]
+transform = Transform3D(0.60379505, 0, -4.9705164e-07, 0, 9.053044, 0, 8.332313e-08, 0, -13.53609, 73, 3, 60.499992)
+
+[node name="Block17" parent="Node3D" unique_id=1457303898 instance=ExtResource("2_jo0ku")]
+transform = Transform3D(0.60379505, 0, -4.9705164e-07, 0, 9.053044, 0, 8.332313e-08, 0, -13.53609, 26.5, 3, 60.499992)
+
+[node name="Wedge" parent="Node3D" unique_id=77666293 instance=ExtResource("3_jo0ku")]
+transform = Transform3D(18.048, 0, 0, 0, 9.746099, 0, 0, 0, 19.245598, 10, 1.5, 50.5)
+
+[node name="Wedge3" parent="Node3D" unique_id=942056894 instance=ExtResource("3_jo0ku")]
+transform = Transform3D(4.7683716e-07, 0, -19.245598, 0, 9.7461, 0, 18.048, 0, -1.4305115e-06, 64, 1.5, 37.5)
+
+[node name="Wedge4" parent="Node3D" unique_id=1535005947 instance=ExtResource("3_jo0ku")]
+transform = Transform3D(4.7683716e-07, 0, -19.245598, 0, 9.7461, 0, 18.048, 0, -1.4305115e-06, 36.5, 1.5, 37.5)
+
+[node name="Wedge2" parent="Node3D" unique_id=1689379645 instance=ExtResource("3_jo0ku")]
+transform = Transform3D(-18.048, 0, 1.6825036e-06, 0, 9.7461, 0, -1.5778064e-06, 0, -19.2456, 89, 1.5, 50.5)

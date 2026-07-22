@@ -1,6 +1,7 @@
-[gd_scene format=3 uid="uid://c28l2jvso4gpm"]
+[gd_scene format=3 uid="uid://cktvta08lop4h"]
 
-[ext_resource type="PackedScene" uid="uid://d2cl357p6d24u" path="res://scenes/base_objects/floor_tile.tscn" id="1_kwbbp"]
+[ext_resource type="PackedScene" uid="uid://d2cl357p6d24u" path="res://scenes/base_objects/floor_tile.tscn" id="1_ckaft"]
+[ext_resource type="PackedScene" uid="uid://l0lo3nuk7jlv" path="res://scenes/base_objects/block.tscn" id="2_powap"]
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_1swbr"]
 size = Vector3(44, 10, 1)
@@ -50,7 +51,7 @@ transform = Transform3D(100, 0, 0, 0, 100, 0, 0, 0, 100, 0, 0, 0)
 [node name="Node3D" type="Node3D" parent="." unique_id=2056889693]
 transform = Transform3D(0.01, 0, 0, 0, 0.01, 0, 0, 0, 0.01, -0.5, 0, -0.5)
 
-[node name="floor_tile" parent="Node3D" unique_id=345918832 instance=ExtResource("1_kwbbp")]
+[node name="floor_tile" parent="Node3D" unique_id=345918832 instance=ExtResource("1_ckaft")]
 transform = Transform3D(100, 0, 0, 0, 100, 0, 0, 0, 100, 0, 0, 0)
 
 [node name="Entrance" type="Node3D" parent="Node3D" unique_id=638311329]
@@ -85,11 +86,11 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 99, 0, 0)
 transform = Transform3D(-4.371139e-08, 0, -1, 0, 1, 0, 1, 0, -4.371139e-08, 0.9999978, 0, 99)
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="Node3D/Entrance2/Wall1" unique_id=2014252554]
-transform = Transform3D(1, 0, -3.5527137e-15, 0, 1, 0, 3.5527137e-15, 0, 1, -22.000011, 4.9999995, 0.50001526)
+transform = Transform3D(1, 0, -3.5527137e-15, 0, 1, 0, 3.5527137e-15, 0, 1, -22.000008, 4.9999995, 0.5000229)
 shape = SubResource("BoxShape3D_1swbr")
 
 [node name="MeshInstance3D" type="MeshInstance3D" parent="Node3D/Entrance2/Wall1" unique_id=1306357389]
-transform = Transform3D(1, 0, -3.5527137e-15, 0, 1, 0, 3.5527137e-15, 0, 1, -22.000006, 4.9999995, 0.5000076)
+transform = Transform3D(1, 0, -3.5527137e-15, 0, 1, 0, 3.5527137e-15, 0, 1, -22.000004, 4.9999995, 0.50001144)
 mesh = SubResource("BoxMesh_w4ap0")
 skeleton = NodePath("../../../..")
 
@@ -183,3 +184,66 @@ shape = SubResource("BoxShape3D_w4ap0")
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.99999857, 4.9999995, 0.5)
 mesh = SubResource("BoxMesh_7wfm7")
 skeleton = NodePath("../../..")
+
+[node name="Block3" parent="Node3D" unique_id=428948075 instance=ExtResource("2_powap")]
+transform = Transform3D(9.702838, 0, 0, 0, 8.187469, 0, 0, 0, 20.133001, 30.180458, 0, 23.198277)
+
+[node name="Block4" parent="Node3D" unique_id=1696930058 instance=ExtResource("2_powap")]
+transform = Transform3D(4.851419, 0, 0, 0, 17.11181, 0, 0, 0, 4.793572, 30.180458, 0, 23.198277)
+
+[node name="Block5" parent="Node3D" unique_id=976475797 instance=ExtResource("2_powap")]
+transform = Transform3D(3.3959932, 0, 0, 0, 35.9348, 0, 0, 0, 2.8761432, 30.180458, 0, 23.198277)
+
+[node name="Block6" parent="Node3D" unique_id=2104162648 instance=ExtResource("2_powap")]
+transform = Transform3D(16.88294, 0, 0, 0, 8.187469, 0, 0, 0, 9.587144, 19.680458, 0, 49.198277)
+
+[node name="Block7" parent="Node3D" unique_id=165551726 instance=ExtResource("2_powap")]
+transform = Transform3D(4.851419, 0, 0, 0, 17.11181, 0, 0, 0, 4.793572, 19.680458, 0, 49.198277)
+
+[node name="Block8" parent="Node3D" unique_id=191855952 instance=ExtResource("2_powap")]
+transform = Transform3D(3.3959932, 0, 0, 0, 35.9348, 0, 0, 0, 2.8761432, 19.680458, 0, 49.198277)
+
+[node name="Block9" parent="Node3D" unique_id=936334994 instance=ExtResource("2_powap")]
+transform = Transform3D(21.831385, 0, 0, 0, 8.187469, 0, 0, 0, 54.646725, 68.68046, 0, 49.198277)
+
+[node name="Block10" parent="Node3D" unique_id=742806543 instance=ExtResource("2_powap")]
+transform = Transform3D(4.851419, 0, 0, 0, 17.11181, 0, 0, 0, 4.793572, 68.68046, 0, 49.198277)
+
+[node name="Block11" parent="Node3D" unique_id=1361418035 instance=ExtResource("2_powap")]
+transform = Transform3D(3.3959932, 0, 0, 0, 35.9348, 0, 0, 0, 2.8761432, 68.68046, 0, 49.198277)
+
+[node name="Block12" parent="Node3D" unique_id=422793998 instance=ExtResource("2_powap")]
+transform = Transform3D(9.702838, 0, 0, 0, 8.187469, 0, 0, 0, 48.894436, 46.180458, 0, 74.69827)
+
+[node name="Block13" parent="Node3D" unique_id=1419867303 instance=ExtResource("2_powap")]
+transform = Transform3D(4.851419, 0, 0, 0, 17.11181, 0, 0, 0, 4.793572, 46.180458, 0, 74.69827)
+
+[node name="Block14" parent="Node3D" unique_id=2011921324 instance=ExtResource("2_powap")]
+transform = Transform3D(3.3959932, 0, 0, 0, 35.9348, 0, 0, 0, 2.8761432, 46.180458, 0, 74.69827)
+
+[node name="Block15" parent="Node3D" unique_id=815175655 instance=ExtResource("2_powap")]
+transform = Transform3D(9.702838, 0, 0, 0, 8.187469, 0, 0, 0, 9.587144, 88.18046, 0, 74.69827)
+
+[node name="Block16" parent="Node3D" unique_id=1580224412 instance=ExtResource("2_powap")]
+transform = Transform3D(4.851419, 0, 0, 0, 17.11181, 0, 0, 0, 4.793572, 88.18046, 0, 74.69827)
+
+[node name="Block17" parent="Node3D" unique_id=2001502565 instance=ExtResource("2_powap")]
+transform = Transform3D(3.3959932, 0, 0, 0, 35.9348, 0, 0, 0, 2.8761432, 88.18046, 0, 74.69827)
+
+[node name="Block18" parent="Node3D" unique_id=1185838167 instance=ExtResource("2_powap")]
+transform = Transform3D(11.643405, 0, 0, 0, 8.187469, 0, 0, 0, 9.587144, 83.68046, 0, 20.698273)
+
+[node name="Block19" parent="Node3D" unique_id=1237976627 instance=ExtResource("2_powap")]
+transform = Transform3D(4.851419, 0, 0, 0, 17.11181, 0, 0, 0, 4.793572, 88.18046, 0, 20.698273)
+
+[node name="Block20" parent="Node3D" unique_id=1132383606 instance=ExtResource("2_powap")]
+transform = Transform3D(3.3959932, 0, 0, 0, 35.9348, 0, 0, 0, 2.8761432, 88.18046, 0, 20.698273)
+
+[node name="Block21" parent="Node3D" unique_id=264846711 instance=ExtResource("2_powap")]
+transform = Transform3D(9.702838, 0, 0, 0, 8.187469, 0, 0, 0, 9.587144, 53.680458, 0, 20.698273)
+
+[node name="Block22" parent="Node3D" unique_id=756364069 instance=ExtResource("2_powap")]
+transform = Transform3D(4.851419, 0, 0, 0, 17.11181, 0, 0, 0, 4.793572, 53.680458, 0, 20.698273)
+
+[node name="Block23" parent="Node3D" unique_id=2025368563 instance=ExtResource("2_powap")]
+transform = Transform3D(3.3959932, 0, 0, 0, 35.9348, 0, 0, 0, 2.8761432, 53.680458, 0, 20.698273)

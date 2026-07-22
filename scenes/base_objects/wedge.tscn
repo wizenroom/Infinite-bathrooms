@@ -1,0 +1,25 @@
+[gd_scene format=3 uid="uid://c5cqqrm01lda2"]
+
+[ext_resource type="Texture2D" uid="uid://di4neyqoxl14y" path="res://greyboxtext/textures/general/prototype_grid_darkgrey.png" id="1_qsj6e"]
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_noodi"]
+albedo_texture = ExtResource("1_qsj6e")
+uv1_triplanar = true
+uv1_world_triplanar = true
+
+[sub_resource type="PrismMesh" id="PrismMesh_3dxap"]
+left_to_right = 1.0
+
+[sub_resource type="ConvexPolygonShape3D" id="ConvexPolygonShape3D_weopp"]
+points = PackedVector3Array(0.5, -0.5, 0.5, 0.5, -0.5, -0.5, -0.5, -0.5, 0.5, -0.5, -0.5, -0.5, 0.5, 0.5, -0.5, 0.5, 0.5, 0.5)
+
+[node name="Wedge" type="Node3D" unique_id=428948075]
+
+[node name="StaticBody3D" type="StaticBody3D" parent="." unique_id=1423640107]
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="StaticBody3D" unique_id=581870404]
+material_override = SubResource("StandardMaterial3D_noodi")
+mesh = SubResource("PrismMesh_3dxap")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="StaticBody3D" unique_id=2039414932]
+shape = SubResource("ConvexPolygonShape3D_weopp")

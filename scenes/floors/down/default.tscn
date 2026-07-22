@@ -45,6 +45,7 @@ size = Vector3(98, 10, 1)
 size = Vector3(98, 10, 1)
 
 [node name="Prototype" type="Node3D" unique_id=1780953924]
+transform = Transform3D(100, 0, 0, 0, 100, 0, 0, 0, 100, 0, 0, 0)
 
 [node name="Node3D" type="Node3D" parent="." unique_id=2056889693]
 transform = Transform3D(0.01, 0, 0, 0, 0.01, 0, 0, 0, 0.01, -0.5, 0, -0.5)
@@ -193,6 +194,6 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.99999905, 4.9999995, 0.5)
 shape = SubResource("BoxShape3D_w4ap0")
 
 [node name="MeshInstance3D" type="MeshInstance3D" parent="Node3D/Wall3" unique_id=2032368054]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.99999857, 4.9999995, 0.5)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.99999905, 4.9999995, 0.5)
 mesh = SubResource("BoxMesh_7wfm7")
 skeleton = NodePath("../../..")

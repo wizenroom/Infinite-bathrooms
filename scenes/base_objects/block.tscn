@@ -1,0 +1,23 @@
+[gd_scene format=3 uid="uid://l0lo3nuk7jlv"]
+
+[ext_resource type="Texture2D" uid="uid://di4neyqoxl14y" path="res://greyboxtext/textures/general/prototype_grid_darkgrey.png" id="1_twkti"]
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_prt3j"]
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_noodi"]
+albedo_texture = ExtResource("1_twkti")
+uv1_triplanar = true
+uv1_world_triplanar = true
+
+[sub_resource type="BoxMesh" id="BoxMesh_1edjn"]
+
+[node name="Block" type="Node3D" unique_id=428948075]
+
+[node name="StaticBody3D" type="StaticBody3D" parent="." unique_id=49933584]
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="StaticBody3D" unique_id=1867718438]
+shape = SubResource("BoxShape3D_prt3j")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="StaticBody3D" unique_id=1987629058]
+material_override = SubResource("StandardMaterial3D_noodi")
+mesh = SubResource("BoxMesh_1edjn")

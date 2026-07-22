@@ -1,6 +1,8 @@
-[gd_scene format=3 uid="uid://c28l2jvso4gpm"]
+[gd_scene format=3 uid="uid://teod7bcermt2"]
 
-[ext_resource type="PackedScene" uid="uid://d2cl357p6d24u" path="res://scenes/base_objects/floor_tile.tscn" id="1_kwbbp"]
+[ext_resource type="PackedScene" uid="uid://d2cl357p6d24u" path="res://scenes/base_objects/floor_tile.tscn" id="1_0lfeg"]
+[ext_resource type="PackedScene" uid="uid://l0lo3nuk7jlv" path="res://scenes/base_objects/block.tscn" id="2_tfyff"]
+[ext_resource type="PackedScene" uid="uid://c5cqqrm01lda2" path="res://scenes/base_objects/wedge.tscn" id="3_tfyff"]
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_1swbr"]
 size = Vector3(44, 10, 1)
@@ -50,7 +52,7 @@ transform = Transform3D(100, 0, 0, 0, 100, 0, 0, 0, 100, 0, 0, 0)
 [node name="Node3D" type="Node3D" parent="." unique_id=2056889693]
 transform = Transform3D(0.01, 0, 0, 0, 0.01, 0, 0, 0, 0.01, -0.5, 0, -0.5)
 
-[node name="floor_tile" parent="Node3D" unique_id=345918832 instance=ExtResource("1_kwbbp")]
+[node name="floor_tile" parent="Node3D" unique_id=345918832 instance=ExtResource("1_0lfeg")]
 transform = Transform3D(100, 0, 0, 0, 100, 0, 0, 0, 100, 0, 0, 0)
 
 [node name="Entrance" type="Node3D" parent="Node3D" unique_id=638311329]
@@ -100,6 +102,32 @@ transform = Transform3D(-4.371139e-08, 0, -1, 0, 1, 0, 1, 0, -4.371139e-08, 0.50
 shape = SubResource("BoxShape3D_lb86o")
 
 [node name="MeshInstance3D2" type="MeshInstance3D" parent="Node3D/Entrance2/Wall2" unique_id=206203549]
+transform = Transform3D(-4.371139e-08, 0, -1, 0, 1, 0, 1, 0, -4.371139e-08, 0.5000038, 4.9999995, 23.000002)
+mesh = SubResource("BoxMesh_4iftf")
+skeleton = NodePath("../../../..")
+
+[node name="Entrance3" type="Node3D" parent="Node3D" unique_id=1044857454]
+transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, 7.6293945e-06, 0, 100.00001)
+
+[node name="Wall1" type="StaticBody3D" parent="Node3D/Entrance3" unique_id=97851369]
+transform = Transform3D(-4.371139e-08, 0, -1, 0, 1, 0, 1, 0, -4.371139e-08, 0.9999978, 0, 99)
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Node3D/Entrance3/Wall1" unique_id=1078382466]
+transform = Transform3D(1, 0, -3.5527137e-15, 0, 1, 0, 3.5527137e-15, 0, 1, -22.000011, 4.9999995, 0.50001526)
+shape = SubResource("BoxShape3D_1swbr")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="Node3D/Entrance3/Wall1" unique_id=994395231]
+transform = Transform3D(1, 0, -3.5527137e-15, 0, 1, 0, 3.5527137e-15, 0, 1, -22.000006, 4.9999995, 0.5000076)
+mesh = SubResource("BoxMesh_w4ap0")
+skeleton = NodePath("../../../..")
+
+[node name="Wall2" type="StaticBody3D" parent="Node3D/Entrance3" unique_id=612826725]
+
+[node name="CollisionShape3D2" type="CollisionShape3D" parent="Node3D/Entrance3/Wall2" unique_id=1040189501]
+transform = Transform3D(-4.371139e-08, 0, -1, 0, 1, 0, 1, 0, -4.371139e-08, 0.5000038, 4.9999995, 22.999996)
+shape = SubResource("BoxShape3D_lb86o")
+
+[node name="MeshInstance3D2" type="MeshInstance3D" parent="Node3D/Entrance3/Wall2" unique_id=172365505]
 transform = Transform3D(-4.371139e-08, 0, -1, 0, 1, 0, 1, 0, -4.371139e-08, 0.5000038, 4.9999995, 23.000002)
 mesh = SubResource("BoxMesh_4iftf")
 skeleton = NodePath("../../../..")
@@ -168,18 +196,51 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.99999905, 4.9999995, 0.5)
 shape = SubResource("BoxShape3D_w4ap0")
 
 [node name="MeshInstance3D" type="MeshInstance3D" parent="Node3D/Wall3" unique_id=2032368054]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.99999857, 4.9999995, 0.5)
-mesh = SubResource("BoxMesh_7wfm7")
-skeleton = NodePath("../../..")
-
-[node name="Wall4" type="StaticBody3D" parent="Node3D" unique_id=740326239]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 49, 0, 99)
-
-[node name="CollisionShape3D" type="CollisionShape3D" parent="Node3D/Wall4" unique_id=2045735100]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.99999905, 4.9999995, 0.5)
-shape = SubResource("BoxShape3D_w4ap0")
-
-[node name="MeshInstance3D" type="MeshInstance3D" parent="Node3D/Wall4" unique_id=224892520]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.99999857, 4.9999995, 0.5)
 mesh = SubResource("BoxMesh_7wfm7")
 skeleton = NodePath("../../..")
+
+[node name="Block6" parent="Node3D" unique_id=1086989012 instance=ExtResource("2_tfyff")]
+transform = Transform3D(-13.434614, 0, 3.5929243e-06, 0, 9.053045, 0, -1.8539637e-06, 0, 97.84522, 63.5, 4.5, 49.67858)
+
+[node name="Block7" parent="Node3D" unique_id=428948075 instance=ExtResource("2_tfyff")]
+transform = Transform3D(-5.6939207e-06, 0, 40.567783, 0, 9.053045, 0, 60.388844, 0, -3.2629425e-06, 38, 4.5, 29.499992)
+
+[node name="Block15" parent="Node3D" unique_id=623521045 instance=ExtResource("2_tfyff")]
+transform = Transform3D(-1.138784e-06, 0, 18.2555, 0, 8.47365, 0, 12.077767, 0, -1.468324e-06, 9.5, 4.5, 5.9999924)
+
+[node name="Block9" parent="Node3D" unique_id=1032560410 instance=ExtResource("2_tfyff")]
+transform = Transform3D(-1.7081762e-06, 0, 40.56778, 0, 9.053045, 0, 18.116653, 0, -3.2629423e-06, 79, 4.5, 9.999992)
+
+[node name="Block11" parent="Node3D" unique_id=88031357 instance=ExtResource("2_tfyff")]
+transform = Transform3D(-6.1494325e-06, 0, -0.8113556, 0, 9.053045, 0, 65.21994, 0, 6.525884e-08, 69.5, 12, 49.999992)
+
+[node name="Block12" parent="Node3D" unique_id=816621977 instance=ExtResource("2_tfyff")]
+transform = Transform3D(-6.1494325e-06, 0, -0.8113556, 0, 9.053045, 0, 65.21994, 0, 6.525884e-08, 99.5, 14, 32.499992)
+
+[node name="Block16" parent="Node3D" unique_id=68831399 instance=ExtResource("2_tfyff")]
+transform = Transform3D(-6.1494325e-06, 0, -0.8113556, 0, 9.053045, 0, 65.21994, 0, 6.525884e-08, 0.5, 14, 32.499992)
+
+[node name="Block13" parent="Node3D" unique_id=878644973 instance=ExtResource("2_tfyff")]
+transform = Transform3D(30.131617, 0, 1.0072433e-07, 0, 9.053045, 0, 1.5239431e-06, 0, 0.8113556, 84, 14, -7.6293945e-06)
+
+[node name="Block14" parent="Node3D" unique_id=941121223 instance=ExtResource("2_tfyff")]
+transform = Transform3D(91.60012, 0, 1.00724314e-07, 0, 14.913627, 0, 4.6327873e-06, 0, 0.8113555, 45, 11.5, -7.6293945e-06)
+
+[node name="Block17" parent="Node3D" unique_id=1797325870 instance=ExtResource("2_tfyff")]
+transform = Transform3D(40.30405, 0, 1.00724314e-07, 0, 1.3422265, 0, 2.0384264e-06, 0, 0.8113555, 38.5, 9.5, 58.999992)
+
+[node name="Block18" parent="Node3D" unique_id=1828866079 instance=ExtResource("2_tfyff")]
+transform = Transform3D(-3.8001726e-06, 0, -0.8113556, 0, 1.3422265, 0, 40.304047, 0, 6.525883e-08, 18.5, 9.5, 38.999992)
+
+[node name="Block10" parent="Node3D" unique_id=1930353267 instance=ExtResource("2_tfyff")]
+transform = Transform3D(-1.7081762e-06, 0, 28.397446, 0, 50.787586, 0, 18.116653, 0, -2.2840595e-06, 79, 4.5, 81.49999)
+
+[node name="Block8" parent="Node3D" unique_id=1262632875 instance=ExtResource("2_tfyff")]
+transform = Transform3D(6.896682e-06, 0, -43.263107, 0, 31.776188, 0, -37.95425, 0, -3.0244797e-07, 77.5, 4.5, 79.49999)
+
+[node name="Wedge" parent="Node3D" unique_id=1180759863 instance=ExtResource("3_tfyff")]
+transform = Transform3D(-1.3585496e-06, 0, 23.040009, 0, 10.217031, 0, -31.07999, 0, -1.0071108e-06, 11.5, 4, 27.5)
+
+[node name="Wedge2" parent="Node3D" unique_id=920040175 instance=ExtResource("3_tfyff")]
+transform = Transform3D(-1.3585496e-06, 0, 29.95201, 0, 10.217031, 0, -31.07999, 0, -1.309244e-06, 84.5, 4, 34.5)

@@ -1,7 +1,27 @@
 [gd_scene format=3 uid="uid://cpv0cndpddpmf"]
 
 [ext_resource type="PackedScene" uid="uid://c28l2jvso4gpm" path="res://scenes/floors/straight_through/defaultstraight.tscn" id="1_n48m4"]
+[ext_resource type="PackedScene" uid="uid://5524ad2iefty" path="res://scenes/floors/straight_through/2.tscn" id="2_jts8w"]
+[ext_resource type="PackedScene" uid="uid://dagbtm2g657rw" path="res://scenes/floors/straight_through/3.tscn" id="3_mqde4"]
+[ext_resource type="PackedScene" uid="uid://cpo3brwm7dv2b" path="res://scenes/floors/straight_through/4.tscn" id="4_f8or5"]
+[ext_resource type="PackedScene" uid="uid://cktvta08lop4h" path="res://scenes/floors/straight_through/5.tscn" id="5_f168k"]
+[ext_resource type="PackedScene" uid="uid://blbee8xie527a" path="res://scenes/floors/straight_through/6.tscn" id="6_jmwwc"]
 
 [node name="LoaderStraightThrough" type="Node3D" unique_id=2055799717]
 
 [node name="Prototype" parent="." unique_id=1780953924 instance=ExtResource("1_n48m4")]
+
+[node name="Prototype2" parent="." unique_id=673872020 instance=ExtResource("2_jts8w")]
+transform = Transform3D(100, 0, 0, 0, 100, 0, 0, 0, 100, 122, 0, 0)
+
+[node name="Prototype3" parent="." unique_id=192443510 instance=ExtResource("3_mqde4")]
+transform = Transform3D(100, 0, 0, 0, 100, 0, 0, 0, 100, -130, 0, 0)
+
+[node name="Prototype4" parent="." unique_id=672641432 instance=ExtResource("4_f8or5")]
+transform = Transform3D(100, 0, 0, 0, 100, 0, 0, 0, 100, -250, 0, 0)
+
+[node name="Prototype5" parent="." unique_id=1481624770 instance=ExtResource("5_f168k")]
+transform = Transform3D(100, 0, 0, 0, 100, 0, 0, 0, 100, -382, 0, 0)
+
+[node name="Prototype6" parent="." unique_id=1772300205 instance=ExtResource("6_jmwwc")]
+transform = Transform3D(100, 0, 0, 0, 100, 0, 0, 0, 100, -523, 0, 0)

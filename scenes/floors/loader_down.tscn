@@ -1,7 +1,19 @@
 [gd_scene format=3 uid="uid://bdw6cp1oej1er"]
 
 [ext_resource type="PackedScene" uid="uid://wurpct8r2dpx" path="res://scenes/floors/down/default.tscn" id="1_v0y62"]
+[ext_resource type="PackedScene" uid="uid://bmnfqu42qvasr" path="res://scenes/floors/down/2.tscn" id="2_g7oto"]
+[ext_resource type="PackedScene" uid="uid://cgs7rua1t7bye" path="res://scenes/floors/down/3.tscn" id="3_kamn7"]
+[ext_resource type="PackedScene" uid="uid://teod7bcermt2" path="res://scenes/floors/down/4.tscn" id="4_38yjq"]
 
 [node name="LoaderDown" type="Node3D" unique_id=2002200279]
 
 [node name="Prototype" parent="." unique_id=1780953924 instance=ExtResource("1_v0y62")]
+
+[node name="2" parent="." unique_id=19308632 instance=ExtResource("2_g7oto")]
+transform = Transform3D(100, 0, 0, 0, 100, 0, 0, 0, 100, 125, 0, 0)
+
+[node name="Prototype2" parent="." unique_id=1112647391 instance=ExtResource("3_kamn7")]
+transform = Transform3D(100, 0, 0, 0, 100, 0, 0, 0, 100, -116, 0, 0)
+
+[node name="Prototype3" parent="." unique_id=500079581 instance=ExtResource("4_38yjq")]
+transform = Transform3D(100, 0, 0, 0, 100, 0, 0, 0, 100, -244, 0, 0)
