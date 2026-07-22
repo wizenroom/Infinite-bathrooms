@@ -51,6 +51,8 @@ static var _merge_cache := {}
 
 var outcome := Outcome.EMPTY
 var is_open := false
+## Each throne only grants relief (or horror) once.
+var seat_used := false
 
 var _model: Node3D = null
 var _lid: MeshInstance3D = null
@@ -112,6 +114,16 @@ func _has_occupant() -> bool:
 ## World position just inside the stall (enemy spawn / win check).
 func interior_point() -> Vector3:
 	return to_global(Vector3(0, 0, 0.6))
+
+
+## Where the player ends up when sitting down (on the toilet, facing the door).
+func seat_point() -> Vector3:
+	return to_global(Vector3(0, 0.05, 1.0))
+
+
+## An open stall with nobody on the throne can be sat on.
+func can_sit() -> bool:
+	return is_open and _occupant == null
 
 
 ## Remove the sitting occupant (the manager replaces hostiles with live enemies).

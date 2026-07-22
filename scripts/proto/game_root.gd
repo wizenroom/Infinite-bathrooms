@@ -3,7 +3,7 @@ extends Node
 ## (nearest-neighbor upscale) with the retro post shader on top.
 ## The HUD is parented here, outside the pixelation, so text stays readable.
 
-const BathroomScript := preload("res://scripts/proto/bathroom.gd")
+const BATHROOM_SCENE := preload("res://scenes/bathroom.tscn")
 const RETRO_SHADER := preload("res://shaders/retro.gdshader")
 
 const SHRINK := 4  # render at 1/4 resolution
@@ -25,6 +25,6 @@ func _ready() -> void:
 	vp.own_world_3d = true
 	container.add_child(vp)
 
-	var world: Node3D = BathroomScript.new()
+	var world: Node3D = BATHROOM_SCENE.instantiate()
 	world.hud_parent = self
 	vp.add_child(world)

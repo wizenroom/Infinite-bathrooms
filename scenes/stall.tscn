@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://dd7jbfj01xtnk"]
+
+[ext_resource type="Script" path="res://scripts/proto/stall.gd" id="1_stall"]
+
+[node name="Stall" type="Node3D"]
+script = ExtResource("1_stall")

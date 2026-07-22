@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://dd618fu0fptnk"]
+
+[ext_resource type="Script" path="res://scripts/proto/crawler.gd" id="1_crawler"]
+
+[node name="Crawler" type="CharacterBody3D"]
+script = ExtResource("1_crawler")

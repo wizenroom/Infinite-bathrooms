@@ -6,6 +6,12 @@ extends Node3D
 ##
 ## Controls: WASD move, mouse look, LMB/Space swing, E knock, R restart (after end).
 
+## Entity scenes (each is a root node + script; they build themselves).
+const PLAYER_SCENE := preload("res://scenes/player.tscn")
+const ENEMY_SCENE := preload("res://scenes/enemy.tscn")
+const CRAWLER_ENEMY_SCENE := preload("res://scenes/crawler.tscn")
+const STALL_SCENE := preload("res://scenes/stall.tscn")
+
 const PLANT_SCENE := preload("res://assets/plant.glb")
 const FLOOR_TILE := preload("res://assets/floor_tile.glb")
 const CEILING_TILE := preload("res://assets/ceiling_tile.glb")
@@ -28,12 +34,25 @@ const PROP_DEFS := [
 	{ "scene": preload("res://assets/wet_floor_sign.glb"), "off": Vector3(4.605, 0.0277, -0.0044), "scale": 0.18,
 		"col_size": Vector3(0.35, 0.85, 0.25), "col_pos": Vector3(0, 0.42, 0) },
 	{ "scene": preload("res://assets/plant.glb"), "off": Vector3(0, -0.32, 0), "scale": 0.6 },
+	{ "scene": preload("res://assets/lamp.glb"), "off": Vector3(0, -0.5709, 0), "scale": 0.55,
+		"col_size": Vector3(0.9, 3.7, 0.9), "col_pos": Vector3(0, 1.85, 0) },
 ]
 
 const SINK_SCENE := preload("res://assets/sink_table.glb")
 const SINK_OFF := Vector3(11.8065, -0.1394, 36.0145)
 const TREE_SCENE := preload("res://assets/tree.glb")
 const TREE_OFF := Vector3(1.438, -0.0163, -0.9305)
+
+## The user's OPEN/CLOSE hanging light models double as the corridor lights,
+## dangling from the ceiling. 1.52 x 0.41 flat signs; centers to cancel.
+const CEIL_LIGHT_OPEN := preload("res://assets/light_open.glb")
+const CEIL_LIGHT_CLOSED := preload("res://assets/light_closed.glb")
+const CEIL_LIGHT_CENTERS := {
+	"open": Vector3(0.0, 0.0, 0.0),
+	"closed": Vector3(0.0, 0.0, -0.607684),
+}
+const CEIL_LIGHT_SCALE := 0.7
+const CEIL_LIGHT_HEIGHT := 0.411
 
 const STALL_SPACING := 1.4  # stall models are 1.29 wide; keep the row tight
 const STALL_X := 3.4
@@ -73,8 +92,8 @@ var _overlay_label: Label
 var _spawned: Array = []  # [{ "z": float, "node": Node }]
 var _prop_merge_cache := {}
 
-## Crawlers are pooled: the 1.8M-triangle model hitches hard if instantiated
-## mid-game, so both instances are built once here and woken up on demand.
+## Crawlers are pooled: built once at startup and woken on demand so spawn
+## never hitch-instantiates the skinned mesh mid-game.
 var _crawler_pool: Array = []
 
 var _slot_frames: Array = []
@@ -88,15 +107,16 @@ func _ready() -> void:
 	_build_environment()
 	_build_hud()
 
-	player = ProtoPlayer.new()
+	player = PLAYER_SCENE.instantiate()
 	add_child(player)
 	player.global_position = Vector3(0, 0.1, 0)
 	player.died.connect(_on_player_died)
 	player.hit.connect(_on_player_hit)
 	player.inventory_changed.connect(_refresh_inventory)
+	_refresh_inventory()  # show HAND in slot 1 from the start
 
 	for i in 2:
-		var c := ProtoCrawler.new()
+		var c: ProtoCrawler = CRAWLER_ENEMY_SCENE.instantiate()
 		add_child(c)
 		_crawler_pool.append(c)
 
@@ -199,21 +219,66 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func _try_knock() -> void:
-	# Nearest closed stall the player is roughly looking toward.
+	# Nearest stall the player is roughly looking toward. Closed = knock;
+	# open with an unoccupied throne = sit on it.
 	var f := player.facing()
 	var best: Stall = null
 	var best_dist := KNOCK_RANGE
 	for s in stalls:
-		if s.is_open:
-			continue
-		var to_s := s.global_position - player.global_position
-		to_s.y = 0
-		var d := to_s.length()
-		if d < best_dist and f.dot(to_s.normalized()) > 0.25:
-			best_dist = d
-			best = s
-	if best:
+		if not s.is_open or s.can_sit():
+			var to_s := s.global_position - player.global_position
+			to_s.y = 0
+			var d := to_s.length()
+			if d < best_dist and f.dot(to_s.normalized()) > 0.25:
+				best_dist = d
+				best = s
+	if best == null:
+		return
+	if best.is_open:
+		_sit_on(best)
+	else:
 		best.knock()
+
+
+## The toilet as an interaction: sitting is the win on the FREE stall, and a
+## push-your-luck gamble everywhere else.
+func _sit_on(stall: Stall) -> void:
+	if player.locked:
+		return
+
+	if stall.outcome == Stall.Outcome.FREE:
+		if get_tree().get_nodes_in_group("enemies").size() > 0:
+			_show_message("You can't go with the queue jumpers watching!!")
+			return
+		player.locked = true
+		var tw := create_tween()
+		tw.tween_property(player, "global_position", stall.seat_point(), 0.4) \
+			.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+		tw.tween_callback(_end_game.bind(true))
+		return
+
+	if stall.seat_used:
+		_show_message("No. Once was enough.")
+		return
+	stall.seat_used = true
+
+	player.locked = true
+	var tw2 := create_tween()
+	tw2.tween_property(player, "global_position", stall.seat_point(), 0.4) \
+		.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	tw2.tween_interval(0.5)
+	tw2.tween_callback(func() -> void:
+		player.locked = false
+		if rng.randf() < 0.65:
+			player.urgency = maxf(0.0, player.urgency - 14.0)
+			_show_message("A moment of shameful hover-relief... but not THE one. (urgency down)")
+		else:
+			player.urgency = minf(100.0, player.urgency + 8.0)
+			# Hit comes from the bowl: hurled back out through the door.
+			player.take_hit(-stall.global_transform.basis.z)
+			_show_message("SOMETHING IN THE BOWL GRABBED YOU!!")
+			_spawn_crawler(stall.interior_point())
+	)
 
 
 func _spawn_stall_pair(z: float) -> void:
@@ -223,7 +288,7 @@ func _spawn_stall_pair(z: float) -> void:
 		if pair_count > 2 and rng.randf() < 0.1:
 			_spawn_sink(side, z)
 			continue
-		var stall := Stall.new()
+		var stall: Stall = STALL_SCENE.instantiate()
 		add_child(stall)
 		_track(stall, z)
 		stall.position = Vector3(side * STALL_X, 0, z)
@@ -234,28 +299,9 @@ func _spawn_stall_pair(z: float) -> void:
 		stalls.append(stall)
 		stall_count += 1
 
-	# Flickering fluorescent every few pairs, starting right at spawn.
+	# Hanging OPEN/CLOSE light every few pairs - the corridor's actual lighting.
 	if pair_count % LIGHT_EVERY_N_PAIRS == 1:
-		var fixture := MeshInstance3D.new()
-		var tube := BoxMesh.new()
-		tube.size = Vector3(0.15, 0.06, 1.4)
-		fixture.mesh = tube
-		var tube_mat := StandardMaterial3D.new()
-		tube_mat.albedo_color = Color(0.9, 0.95, 0.9)
-		tube_mat.emission_enabled = true
-		tube_mat.emission = Color(0.8, 0.9, 0.8)
-		fixture.material_override = tube_mat
-		fixture.position = Vector3(0, CEILING_Y - 0.05, z)
-		add_child(fixture)
-		_track(fixture, z)
-
-		var light := FlickerLight.new()
-		light.light_color = Color(0.85, 0.95, 0.85)
-		light.base_energy = 1.4
-		light.omni_range = 9.0
-		light.position = Vector3(0, CEILING_Y - 0.3, z)
-		add_child(light)
-		_track(light, z)
+		_spawn_ceiling_light(z)
 
 	# Occasional roamer in the corridor so combat happens between knocks too.
 	# Never within ~15m of the player so nobody gets jumped at spawn.
@@ -328,7 +374,7 @@ func _on_stall_opened(stall: Stall, outcome: Stall.Outcome) -> void:
 				_show_message("Vacant... but unspeakable. Not this one.")
 		Stall.Outcome.FREE:
 			free_stall = stall
-			_show_message("THE FREE STALL! But the queue jumpers arrive...", 4.0)
+			_show_message("THE FREE STALL! Clear the queue, then SIT (E)!", 4.0)
 			# Guards burst out of the neighboring corridor, not out of walls.
 			var z := stall.global_position.z
 			for i in 3:
@@ -336,21 +382,21 @@ func _on_stall_opened(stall: Stall, outcome: Stall.Outcome) -> void:
 
 
 func _check_win() -> void:
+	# Winning now requires SITTING (E) on the free throne, not just proximity.
 	if not free_stall or not free_stall.is_open:
 		return
 	var dist := player.global_position.distance_to(free_stall.interior_point())
-	if dist > 1.4:
+	if dist > 1.4 or _warn_cooldown > 0.0:
 		return
 	if get_tree().get_nodes_in_group("enemies").size() > 0:
-		if _warn_cooldown <= 0.0:
-			_show_message("Deal with the queue jumpers first!")
-			_warn_cooldown = 2.0
-		return
-	_end_game(true)
+		_show_message("Deal with the queue jumpers first!")
+	else:
+		_show_message("The throne awaits. SIT. (E)")
+	_warn_cooldown = 2.0
 
 
 func _spawn_enemy(pos: Vector3) -> void:
-	var e := ProtoEnemy.new()
+	var e: ProtoEnemy = ENEMY_SCENE.instantiate()
 	add_child(e)
 	e.global_position = pos + Vector3(0, 0.1, 0)
 
@@ -375,7 +421,9 @@ func _prune_behind() -> void:
 	var cutoff := player.global_position.z + 12.0
 	var kept: Array = []
 	for entry in _spawned:
-		var node: Node = entry["node"]
+		# Untyped on purpose: tracked nodes can be freed elsewhere (broom
+		# pickups free their wrapper); a typed assignment would error on them.
+		var node = entry["node"]
 		if not is_instance_valid(node):
 			continue
 		if entry["z"] > cutoff:
@@ -398,6 +446,37 @@ func _prune_behind() -> void:
 				e.sleep()
 			else:
 				e.queue_free()
+
+
+## The corridor lighting: one of the OPEN/CLOSE hanging light models dangling
+## from the ceiling, sign face toward the walker, with the flicker light in it.
+func _spawn_ceiling_light(z: float) -> void:
+	var open := rng.randf() < 0.5
+	var scene: PackedScene = CEIL_LIGHT_OPEN if open else CEIL_LIGHT_CLOSED
+	var center: Vector3 = CEIL_LIGHT_CENTERS["open"] if open else CEIL_LIGHT_CENTERS["closed"]
+
+	var wrapper := Node3D.new()
+	add_child(wrapper)
+	_track(wrapper, z)
+	wrapper.scale = Vector3(CEIL_LIGHT_SCALE, CEIL_LIGHT_SCALE, CEIL_LIGHT_SCALE)
+	# Model bottom sits at its local y=0; hang so the top touches the ceiling.
+	wrapper.position = Vector3(0, CEILING_Y - CEIL_LIGHT_HEIGHT * CEIL_LIGHT_SCALE, z)
+	var inst: Node3D = scene.instantiate()
+	inst.position = -center
+	wrapper.add_child(inst)
+
+	var light := FlickerLight.new()
+	# OPEN glows the sickly green, CLOSED glows dirty red - so the corridor
+	# breathes in alternating colors as you go.
+	light.light_color = Color(0.75, 0.95, 0.75) if open else Color(0.95, 0.7, 0.65)
+	light.base_energy = 1.4
+	light.omni_range = 9.0
+	light.position = Vector3(0, CEILING_Y - 0.5, z)
+	light.distance_fade_enabled = true
+	light.distance_fade_begin = 24.0
+	light.distance_fade_length = 8.0
+	add_child(light)
+	_track(light, z)
 
 
 func _spawn_prop(def: Dictionary, pos: Vector3, yaw: float) -> void:
@@ -716,7 +795,7 @@ func _build_hud() -> void:
 	hint.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
 	hint.offset_top = -44
 	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	hint.text = "WASD move  ·  mouse look  ·  LMB / Space swing  ·  E knock  ·  1-4 items"
+	hint.text = "WASD move  ·  mouse look  ·  LMB / Space swing  ·  E knock / sit  ·  1-4 items"
 	hint.add_theme_font_size_override("font_size", 16)
 	hint.modulate = Color(1, 1, 1, 0.55)
 	hud.add_child(hint)

@@ -4,17 +4,14 @@ extends CharacterBody3D
 ## lower to the ground (harder to notice), lunges without much warning.
 ## Two fist hits (one plunger hit) to kill.
 ##
-## The model is 1.8M triangles with a 222-bone rig, so instances are POOLED:
-## the manager builds them once at startup and wakes/sleeps them, instead of
-## paying the instantiate hitch mid-game. The rig also animates in stop-motion
-## (fixed low tick rate) to keep the per-frame bone update cost down - which
-## happens to look creepier anyway.
+## Decimated FBX (~50k verts / 29 deform bones). Still pooled so waking one
+## never hitch-instantiates mid-game. Stop-motion anim ticks keep the crawl
+## looking jerky/creepy and cheap.
 
-const CRAWLER_SCENE := preload("res://assets/crawler.glb")
+const CRAWLER_SCENE := preload("res://assets/crawler.fbx")
 
-## The GLB already lies flat with the head at -Z (the rig node carries the
-## baked rotation), but sits far off-origin. Offset from animated bone bounds:
-## x recenter, y lift lowest bone to ground, z recenter body under the origin.
+## Metarig carries a baked ~9.1 scale + 180° X flip; these cancel it down to
+## ~1.8m long on the floor with the head toward local -Z.
 const MODEL_SCALE := 0.12
 const MODEL_OFFSET := Vector3(0.4, 4.05, 8.5)
 
@@ -73,7 +70,6 @@ func _ready() -> void:
 		mi.visible = false
 
 	_meshes = model.find_children("Man", "MeshInstance3D", true, false)
-	# The body is 1.8M triangles; don't render it beyond the fog.
 	for mi in _meshes:
 		mi.visibility_range_end = 26.0
 	_flash_mat = StandardMaterial3D.new()
@@ -84,11 +80,12 @@ func _ready() -> void:
 	var anims := model.find_children("*", "AnimationPlayer", true, false)
 	if anims.size() > 0:
 		_anim = anims[0]
-		if _anim.has_animation("Crawl"):
-			_anim.get_animation("Crawl").loop_mode = Animation.LOOP_LINEAR
-			# Manual mode: we advance it ourselves in coarse stop-motion steps.
-			_anim.callback_mode_process = AnimationMixer.ANIMATION_CALLBACK_MODE_PROCESS_MANUAL
-			_anim.play("Crawl")
+		# FBX export names the clip "Scene"; fall back to whatever is there.
+		var clip := "Crawl" if _anim.has_animation("Crawl") else String(_anim.get_animation_list()[0])
+		_anim.get_animation(clip).loop_mode = Animation.LOOP_LINEAR
+		# Manual mode: we advance it ourselves in coarse stop-motion steps.
+		_anim.callback_mode_process = AnimationMixer.ANIMATION_CALLBACK_MODE_PROCESS_MANUAL
+		_anim.play(clip)
 
 	sleep()
 

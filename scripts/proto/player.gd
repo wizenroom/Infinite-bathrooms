@@ -27,10 +27,13 @@ var attack_damage := 1
 var attack_range := 2.2
 var attack_cooldown := 0.5
 var has_plunger := false
+## Movement/attack lock while scripted (sitting on a toilet). Look stays free.
+var locked := false
 
-## Four slots; "" = empty. Press 1-4 to equip a slot (empty slot = bare fists).
-var inventory: Array = ["", "", "", ""]
-var equipped_slot := -1
+## Four slots; slot 1 is permanently the bare hand, pickups fill slots 2-4.
+## Press 1-4 to equip a slot (an empty slot also swings bare fists).
+var inventory: Array = ["hand", "", "", ""]
+var equipped_slot := 0
 
 var _attack_timer := 0.0
 var _knockback := Vector3.ZERO
@@ -125,15 +128,16 @@ func _physics_process(delta: float) -> void:
 	_attack_timer = maxf(0.0, _attack_timer - delta)
 
 	var input_dir := Vector2.ZERO
-	if Input.is_physical_key_pressed(KEY_W):
-		input_dir.y -= 1
-	if Input.is_physical_key_pressed(KEY_S):
-		input_dir.y += 1
-	if Input.is_physical_key_pressed(KEY_A):
-		input_dir.x -= 1
-	if Input.is_physical_key_pressed(KEY_D):
-		input_dir.x += 1
-	input_dir = input_dir.normalized()
+	if not locked:
+		if Input.is_physical_key_pressed(KEY_W):
+			input_dir.y -= 1
+		if Input.is_physical_key_pressed(KEY_S):
+			input_dir.y += 1
+		if Input.is_physical_key_pressed(KEY_A):
+			input_dir.x -= 1
+		if Input.is_physical_key_pressed(KEY_D):
+			input_dir.x += 1
+		input_dir = input_dir.normalized()
 
 	var speed: float = lerpf(BASE_SPEED, PANIC_SPEED, urgency / 100.0)
 	var move := (transform.basis * Vector3(input_dir.x, 0, input_dir.y)) * speed
@@ -161,7 +165,7 @@ func _physics_process(delta: float) -> void:
 	else:
 		_head.position.y = lerpf(_head.position.y, 1.62, 10.0 * delta)
 
-	if _attack_timer <= 0.0 and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED \
+	if not locked and _attack_timer <= 0.0 and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED \
 			and (Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT) or Input.is_physical_key_pressed(KEY_SPACE)):
 		_attack()
 
@@ -205,12 +209,12 @@ func give_plunger() -> void:
 	add_item("plunger")
 
 
-## Put an item into the first free slot and equip it. Returns false when the
-## inventory is full or the item is already carried (weapons don't stack).
+## Put an item into the first free slot (2-4; slot 1 is the hand) and equip
+## it. Returns false when full or already carried (weapons don't stack).
 func add_item(item: String) -> bool:
 	if item in inventory:
 		return false
-	for i in inventory.size():
+	for i in range(1, inventory.size()):
 		if inventory[i] == "":
 			inventory[i] = item
 			if item == "plunger":
@@ -220,12 +224,12 @@ func add_item(item: String) -> bool:
 	return false
 
 
-## Equip whatever sits in the given slot; an empty slot means bare fists.
+## Equip whatever sits in the given slot; hand/empty slots swing bare fists.
 func _equip(slot: int) -> void:
 	equipped_slot = slot
-	var item: String = inventory[slot] if slot >= 0 else ""
+	var item: String = inventory[slot]
 
-	_arm.visible = item == ""
+	_arm.visible = item == "hand" or item == ""
 	if _plunger:
 		_plunger.visible = item == "plunger"
 	if _broom:
