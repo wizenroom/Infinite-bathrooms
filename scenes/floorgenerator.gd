@@ -9,12 +9,12 @@ const RoomType = MapEnums.RoomType
 
 const TileScene = preload("res://scenes/base_objects/floor_tile.tscn")
 const ProgressTileScene = preload("res://scenes/base_objects/progress_tile.tscn")
+const TILE_LIBRARY_SCENE = preload("res://scenes/floors/tile_library.tscn")
 
 const TILE_SIZE := 50
 
-func getStraightThrough():
-	
-	
+var tile_library : TileLibrary
+const tiletype = MapEnums.TileType
 
 func build_rooms():
 	for x in width:
@@ -24,12 +24,15 @@ func build_rooms():
 			var tile: Node3D
 
 			if room == RoomType.FILLER:
-				tile = TileScene.instantiate()
+				tile = tile_library.get_random_tile(tiletype.STRAIGHTTHROUGH)
+				add_child(tile)
+			elif room == RoomType.DOWN:
+				tile = tile_library.get_random_tile(tiletype.DOWN)
 				add_child(tile)
 			else:
-				tile = ProgressTileScene.instantiate()
+				tile = tile_library.get_random_tile(tiletype.STRAIGHTTHROUGH)
 				add_child(tile)
-				tile.set_direction(room)
+				#tile.set_direction(room)
 			
 			tile.scale = Vector3i.ONE * TILE_SIZE
 			tile.position = Vector3(
@@ -49,6 +52,8 @@ func build_map_template() -> MapTemplateBuilder:
 	return builder
 
 func _ready():
+	tile_library = TILE_LIBRARY_SCENE.instantiate()
 	builder = build_map_template()
 	print(builder.Map_Template)
 	build_rooms()
+	

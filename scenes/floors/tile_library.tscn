@@ -1,0 +1,13 @@
+[gd_scene format=3 uid="uid://b3m0k08cluhu0"]
+
+[ext_resource type="Script" uid="uid://d0dh0mcme657x" path="res://scenes/floors/tile_library.gd" id="1_rx3iw"]
+[ext_resource type="PackedScene" uid="uid://bdw6cp1oej1er" path="res://scenes/floors/loader_down.tscn" id="2_i7en8"]
+[ext_resource type="PackedScene" uid="uid://cpv0cndpddpmf" path="res://scenes/floors/loader_straight_through.tscn" id="3_b1lk7"]
+
+[node name="Loader" type="Node3D" unique_id=2038129455]
+script = ExtResource("1_rx3iw")
+
+[node name="LoaderDown" parent="." unique_id=2002200279 instance=ExtResource("2_i7en8")]
+
+[node name="LoaderStraightThrough" parent="." unique_id=2055799717 instance=ExtResource("3_b1lk7")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -2)

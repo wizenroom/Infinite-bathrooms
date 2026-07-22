@@ -1,0 +1,7 @@
+[gd_scene format=3 uid="uid://bdw6cp1oej1er"]
+
+[ext_resource type="PackedScene" uid="uid://wurpct8r2dpx" path="res://scenes/floors/down/default.tscn" id="1_v0y62"]
+
+[node name="LoaderDown" type="Node3D" unique_id=2002200279]
+
+[node name="Prototype" parent="." unique_id=1780953924 instance=ExtResource("1_v0y62")]

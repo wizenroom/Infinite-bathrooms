@@ -1,6 +1,6 @@
 [gd_scene format=3 uid="uid://dvc5oonbxxvje"]
 
-[ext_resource type="Script" uid="uid://ddlxnyx0lknb0" path="res://scripts/map/map_generator.gd" id="1_bpbj4"]
+[ext_resource type="Script" uid="uid://ddlxnyx0lknb0" path="res://scenes/floorgenerator.gd" id="1_bpbj4"]
 [ext_resource type="PackedScene" uid="uid://dh3kqcfi5h3e4" path="res://gremlins_fpc/addons/gremlins_first_person/gremlins_fpc.tscn" id="2_cdwa8"]
 
 [node name="FloorGenerator" type="Node3D" unique_id=2140070853]

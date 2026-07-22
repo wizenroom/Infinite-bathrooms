@@ -14,3 +14,8 @@ enum DirectionType {
 	RIGHT,
 	UP
 }
+
+enum TileType {
+	DOWN,
+	STRAIGHTTHROUGH
+}
