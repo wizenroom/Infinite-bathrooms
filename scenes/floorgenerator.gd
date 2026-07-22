@@ -13,10 +13,10 @@ var Map_Instances := make_grid(width, height)
 
 enum RoomType {
 	FILLER,
-    UP,
-    RIGHT,
-    DOWN,
-    LEFT
+	UP,
+	RIGHT,
+	DOWN,
+	LEFT
 }
 
 func make_grid(width: int, height: int, default_value = null) -> Array:
