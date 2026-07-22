@@ -9,6 +9,7 @@ albedo_color = Color(0.5184581, 0.34592196, 0.11910657, 1)
 size = Vector3(1, 0.1, 1)
 
 [node name="floor_tile" type="Node3D" unique_id=345918832]
+transform = Transform3D(50, 0, 0, 0, 50, 0, 0, 0, 50, 0, 0, 0)
 
 [node name="MeshInstance3D" type="MeshInstance3D" parent="." unique_id=492369973]
 transform = Transform3D(1, 0, 0, 0, 0.1, 0, 0, 0, 1, 0.5, -0.05, 0.5)

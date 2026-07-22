@@ -12,6 +12,10 @@ const ProgressTileScene = preload("res://scenes/base_objects/progress_tile.tscn"
 
 const TILE_SIZE := 50
 
+func getStraightThrough():
+	
+	
+
 func build_rooms():
 	for x in width:
 		for y in height:

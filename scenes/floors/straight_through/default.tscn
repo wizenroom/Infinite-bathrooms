@@ -1,0 +1,89 @@
+[gd_scene format=3 uid="uid://cgd4fg6gc2bee"]
+
+[ext_resource type="Script" uid="uid://cd85ksdvl5suo" path="res://scripts/proto/bathroom.gd" id="1_erpi0"]
+[ext_resource type="PackedScene" uid="uid://d2cl357p6d24u" path="res://scenes/base_objects/floor_tile.tscn" id="2_cb7qb"]
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_1edjn"]
+size = Vector3(1, 10, 50)
+
+[sub_resource type="BoxMesh" id="BoxMesh_nhfup"]
+size = Vector3(1, 10, 50)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_lb86o"]
+size = Vector3(17, 10, 1)
+
+[sub_resource type="BoxMesh" id="BoxMesh_4iftf"]
+size = Vector3(17, 10, 1)
+
+[node name="Prototype" type="Node3D" unique_id=1780953924]
+script = ExtResource("1_erpi0")
+
+[node name="Node3D" type="Node3D" parent="." unique_id=1508251822]
+transform = Transform3D(0.02, 0, 0, 0, 0.02, 0, 0, 0, 0.02, 0, 0, 0)
+
+[node name="floor_tile" parent="Node3D" unique_id=345918832 instance=ExtResource("2_cb7qb")]
+
+[node name="Wall" type="StaticBody3D" parent="Node3D" unique_id=1080663565]
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Node3D/Wall" unique_id=1202992783]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.5, 5, 25)
+shape = SubResource("BoxShape3D_1edjn")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="Node3D/Wall" unique_id=1557278901]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.5, 5, 25)
+mesh = SubResource("BoxMesh_nhfup")
+skeleton = NodePath("../../..")
+
+[node name="Wall2" type="StaticBody3D" parent="Node3D" unique_id=158053474]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 49, 0, 0)
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Node3D/Wall2" unique_id=579432096]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.5, 5, 25)
+shape = SubResource("BoxShape3D_1edjn")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="Node3D/Wall2" unique_id=406210528]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.5, 5, 25)
+mesh = SubResource("BoxMesh_nhfup")
+skeleton = NodePath("../../..")
+
+[node name="Entrance" type="StaticBody3D" parent="Node3D" unique_id=647025179]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 49, 0, 0)
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Node3D/Entrance" unique_id=2100718801]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -8.5, 5, 0.5)
+shape = SubResource("BoxShape3D_lb86o")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="Node3D/Entrance" unique_id=293442226]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -8.5, 5, 0.5)
+mesh = SubResource("BoxMesh_4iftf")
+skeleton = NodePath("../../..")
+
+[node name="CollisionShape3D2" type="CollisionShape3D" parent="Node3D/Entrance" unique_id=592774918]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -39.5, 5, 0.5)
+shape = SubResource("BoxShape3D_lb86o")
+
+[node name="MeshInstance3D2" type="MeshInstance3D" parent="Node3D/Entrance" unique_id=291784055]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -39.5, 5, 0.5)
+mesh = SubResource("BoxMesh_4iftf")
+skeleton = NodePath("../../..")
+
+[node name="Entrance2" type="StaticBody3D" parent="Node3D" unique_id=51714482]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 49, 0, 49)
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Node3D/Entrance2" unique_id=1952564321]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -8.5, 5, 0.5)
+shape = SubResource("BoxShape3D_lb86o")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="Node3D/Entrance2" unique_id=890685746]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -8.5, 5, 0.5)
+mesh = SubResource("BoxMesh_4iftf")
+skeleton = NodePath("../../..")
+
+[node name="CollisionShape3D2" type="CollisionShape3D" parent="Node3D/Entrance2" unique_id=1867641398]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -39.5, 5, 0.5)
+shape = SubResource("BoxShape3D_lb86o")
+
+[node name="MeshInstance3D2" type="MeshInstance3D" parent="Node3D/Entrance2" unique_id=1217421575]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -39.5, 5, 0.5)
+mesh = SubResource("BoxMesh_4iftf")
+skeleton = NodePath("../../..")
