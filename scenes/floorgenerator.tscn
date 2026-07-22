@@ -2,11 +2,22 @@
 
 [ext_resource type="Script" uid="uid://ddlxnyx0lknb0" path="res://scenes/floorgenerator.gd" id="1_bpbj4"]
 [ext_resource type="PackedScene" uid="uid://dh3kqcfi5h3e4" path="res://gremlins_fpc/addons/gremlins_first_person/gremlins_fpc.tscn" id="2_cdwa8"]
+[ext_resource type="Shader" uid="uid://cue8ea1fl8kj7" path="res://scenes/retro.gdshader" id="3_4anfk"]
 
 [sub_resource type="Environment" id="Environment_1edjn"]
 ambient_light_source = 2
 ambient_light_color = Color(0.80049086, 0.80049074, 0.80049074, 1)
 fog_enabled = true
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_1edjn"]
+shader = ExtResource("3_4anfk")
+shader_parameter/color_levels = 12.0
+shader_parameter/dither_strength = 1.0
+shader_parameter/pixel_scale = 4.0
+shader_parameter/vignette_strength = 0.5
+shader_parameter/aberration = 1.4
+shader_parameter/grain_strength = 0.05
+shader_parameter/scanline_strength = 0.12
 
 [node name="FloorGenerator" type="Node3D" unique_id=2140070853]
 script = ExtResource("1_bpbj4")
@@ -23,3 +34,14 @@ shadow_blur = 0.0
 
 [node name="WorldEnvironment" type="WorldEnvironment" parent="." unique_id=1642337838]
 environment = SubResource("Environment_1edjn")
+
+[node name="CanvasLayer" type="CanvasLayer" parent="." unique_id=2010208150]
+
+[node name="ColorRect" type="ColorRect" parent="CanvasLayer" unique_id=1462790505]
+material = SubResource("ShaderMaterial_1edjn")
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
