@@ -5,5 +5,4 @@ extends Node3D
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	if event is InputEventKey and event.pressed and event.keycode == KEY_R:
-		terrain.regenerate(randi())
+	pass

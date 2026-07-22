@@ -1,8 +1,8 @@
-[gd_scene load_steps=7 format=3 uid="uid://bmain0000000001"]
+[gd_scene format=3 uid="uid://c2ufo7n8ucfu3"]
 
-[ext_resource type="Script" path="res://scripts/main.gd" id="1_main"]
-[ext_resource type="Script" path="res://scripts/terrain_generator.gd" id="2_terrain"]
-[ext_resource type="Script" path="res://scripts/object_spawner.gd" id="3_spawner"]
+[ext_resource type="Script" uid="uid://bdopxguklics6" path="res://scripts/main.gd" id="1_main"]
+[ext_resource type="Script" uid="uid://dm0tvohlhbbl8" path="res://scripts/terrain_generator.gd" id="2_terrain"]
+[ext_resource type="Script" uid="uid://dxq7iykfv70sj" path="res://scripts/object_spawner.gd" id="3_spawner"]
 
 [sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_1"]
 
@@ -13,22 +13,22 @@ sky_material = SubResource("ProceduralSkyMaterial_1")
 background_mode = 2
 sky = SubResource("Sky_1")
 
-[node name="Main" type="Node3D"]
+[node name="Main" type="Node3D" unique_id=1517721644]
 script = ExtResource("1_main")
 
-[node name="Terrain" type="Node3D" parent="."]
+[node name="Terrain" type="Node3D" parent="." unique_id=778417797]
 script = ExtResource("2_terrain")
 
-[node name="Spawner" type="Node3D" parent="." node_paths=PackedStringArray("terrain")]
+[node name="Spawner" type="Node3D" parent="." unique_id=1171452717 node_paths=PackedStringArray("terrain")]
 script = ExtResource("3_spawner")
 terrain = NodePath("../Terrain")
 
-[node name="Camera3D" type="Camera3D" parent="."]
+[node name="Camera3D" type="Camera3D" parent="." unique_id=219807970]
 transform = Transform3D(1, 0, 0, 0, 0.766044, 0.642788, 0, -0.642788, 0.766044, 0, 35, 45)
 
-[node name="DirectionalLight3D" type="DirectionalLight3D" parent="."]
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="." unique_id=1736737731]
 transform = Transform3D(0.866025, -0.353553, 0.353553, 0, 0.707107, 0.707107, -0.5, -0.612372, 0.612372, 0, 20, 0)
 shadow_enabled = true
 
-[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+[node name="WorldEnvironment" type="WorldEnvironment" parent="." unique_id=1482243437]
 environment = SubResource("Environment_1")

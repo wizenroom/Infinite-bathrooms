@@ -3,8 +3,23 @@
 [ext_resource type="Script" uid="uid://ddlxnyx0lknb0" path="res://scenes/floorgenerator.gd" id="1_bpbj4"]
 [ext_resource type="PackedScene" uid="uid://dh3kqcfi5h3e4" path="res://gremlins_fpc/addons/gremlins_first_person/gremlins_fpc.tscn" id="2_cdwa8"]
 
+[sub_resource type="Environment" id="Environment_1edjn"]
+ambient_light_source = 2
+ambient_light_color = Color(0.80049086, 0.80049074, 0.80049074, 1)
+fog_enabled = true
+
 [node name="FloorGenerator" type="Node3D" unique_id=2140070853]
 script = ExtResource("1_bpbj4")
 
 [node name="FirstPersonCharacter" parent="." unique_id=758639874 instance=ExtResource("2_cdwa8")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3, 5, 3)
+
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="." unique_id=1253841738]
+transform = Transform3D(0.70710677, -3.090862e-08, 0.70710677, -0.70710677, -3.090862e-08, 0.70710677, 0, -1, -4.371139e-08, 0, 0, 0)
+light_indirect_energy = 6.158
+light_volumetric_fog_energy = 4.368
+shadow_enabled = true
+shadow_blur = 0.0
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="." unique_id=1642337838]
+environment = SubResource("Environment_1edjn")
