@@ -53,6 +53,8 @@ var outcome := Outcome.EMPTY
 var is_open := false
 ## Each throne only grants relief (or horror) once.
 var seat_used := false
+## Lid state: auto-opened on vacant reveals, hand-lifted (E) elsewhere.
+var lid_open := false
 
 var _model: Node3D = null
 var _lid: MeshInstance3D = null
@@ -121,9 +123,14 @@ func seat_point() -> Vector3:
 	return to_global(Vector3(0, 0.05, 1.0))
 
 
-## An open stall with nobody on the throne can be sat on.
+## An open stall with nobody on the throne can be interacted with (lid/sit).
 func can_sit() -> bool:
 	return is_open and _occupant == null
+
+
+## Lift the lid by hand (stalls that revealed an occupant keep it down).
+func open_seat() -> void:
+	_open_lid()
 
 
 ## Remove the sitting occupant (the manager replaces hostiles with live enemies).
@@ -207,8 +214,9 @@ func _bless_the_throne() -> void:
 ## separate mesh in the GLB, found by its AABB size signature; we wrap it in
 ## a pivot placed on the hinge edge and rotate that.
 func _open_lid() -> void:
-	if not _lid:
+	if not _lid or lid_open:
 		return
+	lid_open = true
 	# Lid bounds in stall-local space (world AABB axes would be wrong
 	# because the manager rotates the whole stall).
 	var to_stall: Transform3D = global_transform.affine_inverse() * _lid.global_transform

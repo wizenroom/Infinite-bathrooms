@@ -164,6 +164,28 @@ func _ready() -> void:
 			player.add_item("plunger")
 			player.add_item("broom")
 		)
+	if dbg == "sit":
+		# End-to-end E-key path: face an EMPTY stall, knock, then sit twice.
+		get_tree().create_timer(1.5).timeout.connect(func() -> void:
+			for s in stalls:
+				if s.outcome == Stall.Outcome.EMPTY and not s.is_open and s.global_position.z < -6.0:
+					player.global_position = s.global_position + s.global_transform.basis.z * -1.8
+					var dir := s.global_position - player.global_position
+					player.rotation.y = atan2(-dir.x, -dir.z)
+					_try_knock()
+					print("SIT-TEST knocked: open=", s.is_open, " lid=", s.lid_open)
+					break
+		)
+		get_tree().create_timer(3.0).timeout.connect(func() -> void:
+			print("SIT-TEST urgency before=", player.urgency)
+			player.urgency = 30.0
+			_try_knock()
+		)
+		get_tree().create_timer(4.5).timeout.connect(func() -> void:
+			print("SIT-TEST urgency after=", player.urgency, " locked=", player.locked,
+				" msg=", _msg.text, " player_y=", player.global_position.y)
+			get_tree().quit()
+		)
 	if dbg == "top":
 		get_tree().create_timer(1.0).timeout.connect(func() -> void:
 			var cam := Camera3D.new()
@@ -244,6 +266,13 @@ func _try_knock() -> void:
 ## push-your-luck gamble everywhere else.
 func _sit_on(stall: Stall) -> void:
 	if player.locked:
+		return
+
+	# Seat interaction is two-step where the lid is still down (stalls that
+	# revealed an occupant don't auto-open it): first E lifts the lid.
+	if not stall.lid_open:
+		stall.open_seat()
+		_show_message("You lift the lid... (E again to sit)")
 		return
 
 	if stall.outcome == Stall.Outcome.FREE:

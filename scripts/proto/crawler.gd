@@ -91,11 +91,16 @@ func _ready() -> void:
 
 
 ## Park the crawler: invisible, no physics, no animation, no group presence.
+## Also physically moved far below the world - a pooled body left at the
+## origin overlaps the player spawn and depenetration launches them onto
+## the roof.
 func sleep() -> void:
 	sleeping = true
 	visible = false
 	set_physics_process(false)
 	_col.set_deferred("disabled", true)
+	if is_inside_tree():
+		global_position = Vector3(0, -60, 0)
 	remove_from_group("enemies")
 	remove_from_group("crawlers")
 
