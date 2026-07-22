@@ -1,6 +1,6 @@
 [gd_scene format=3 uid="uid://cpv0cndpddpmf"]
 
-[ext_resource type="PackedScene" uid="uid://cgd4fg6gc2bee" path="res://scenes/floors/straight_through/default.tscn" id="1_n48m4"]
+[ext_resource type="PackedScene" uid="uid://c28l2jvso4gpm" path="res://scenes/floors/straight_through/defaultstraight.tscn" id="1_n48m4"]
 
 [node name="LoaderStraightThrough" type="Node3D" unique_id=2055799717]
 
