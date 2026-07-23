@@ -16,6 +16,9 @@ const SPEECH_FONT := preload("res://assets/pixel_font.ttf")
 const NPC_NAMES := [
 	"GARY", "DALE", "PHIL", "MARV", "EUGENE", "CLIFF", "BORIS", "STAN",
 	"OTIS", "REG", "WALT", "HUGO", "SEYMOUR", "TERRENCE", "KEV", "BART",
+	"WIZEN", "SEAN", "ERIC", "ELON MUSK", "BILL GATES", "HAMILTON", "HAMLET",
+	"DOOMSLAYER", "JOHN", "KEVIN", "JACK", "WALTER WHITE", "KENNEDY", "ETHAN",
+	"NICK", "SANTA", "TYGO", "JOHN LENNON", "MARK BROWN", "IVAN", "OWEN", 
 ]
 
 ## Yelled at random while chasing the player.
@@ -37,6 +40,7 @@ const HOSTILE_CHAT_LINES := [
 	"RUN.",
 	"APOLOGIZE TO THE SEAT.",
 	"NO.",
+	"F*** YOU"
 ]
 
 ## First time you talk to a wanderer he introduces himself.
@@ -91,6 +95,16 @@ const BORED_LINES := [
 	"...",
 ]
 
+## The lights start strobing and everyone KNOWS.
+const RUSH_PANIC_LINES := [
+	"HIDE!",
+	"HE'S COMING!",
+	"STALL. NOW!",
+	"NOT AGAIN!",
+	"MOVE MOVE MOVE!",
+	"THE LIGHTS! GO!",
+]
+
 const SPEED := 3.7
 const WANDER_SPEED := 1.4
 const AGGRO_RANGE := 11.0
@@ -112,6 +126,7 @@ var _strike_dir := Vector3.ZERO
 var _wander_target := Vector3.ZERO
 var _wander_timer := 0.0
 var _idle_timer := 0.0
+var _flee_target := Vector3.ZERO
 var _visual: Node3D
 var _anim: AnimationPlayer
 var _meshes: Array = []
@@ -271,6 +286,38 @@ func chat() -> void:
 	say(line, 3.2)
 
 
+## Rush is coming: drop EVERYTHING and sprint for a stall. Even hostiles
+## value their life over their grudge.
+func rush_panic(spot: Vector3) -> void:
+	if _state == "dead":
+		return
+	_flee_target = spot
+	_state = "flee"
+	if randf() < 0.7:
+		say(RUSH_PANIC_LINES[randi_range(0, RUSH_PANIC_LINES.size() - 1)], 1.8)
+
+
+## Rush has passed; whoever is still alive goes back to their business.
+func rush_over() -> void:
+	if _state == "flee" or _state == "hide":
+		if neutral:
+			_pick_wander_target()
+		else:
+			_state = "chase"
+
+
+## Reached cover before Rush swept through?
+func is_hidden() -> bool:
+	return _state == "hide"
+
+
+## Rush caught him in the open. There is no second opinion.
+func rush_die() -> void:
+	if _state != "dead":
+		hp = 0
+		_die()
+
+
 func _pick_wander_target() -> void:
 	_wander_target = Vector3(randf_range(-2.0, 2.0), 0, global_position.z + randf_range(-8.0, 8.0))
 	_wander_timer = randf_range(3.0, 6.0)
@@ -300,6 +347,31 @@ func _physics_process(delta: float) -> void:
 	_chat_face = maxf(0.0, _chat_face - delta)
 
 	match _state:
+		"flee":
+			# Sprint for the assigned stall, shrugging off knockback less
+			# than usual - the alternative is death.
+			var to_f := _flee_target - global_position
+			to_f.y = 0
+			if to_f.length() < 0.45:
+				_state = "hide"
+				velocity.x = _knockback.x
+				velocity.z = _knockback.z
+			else:
+				var fd := to_f.normalized()
+				velocity.x = fd.x * SPEED * 1.15 + _knockback.x
+				velocity.z = fd.z * SPEED * 1.15 + _knockback.z
+				_play("Run", 1.2)
+		"hide":
+			# Cower in the stall until the manager sounds the all-clear.
+			# Shoved out (by a certain someone defending their stall)?
+			# Scramble right back in.
+			velocity.x = _knockback.x
+			velocity.z = _knockback.z
+			_play("Walk", 0.1)
+			var back := _flee_target - global_position
+			back.y = 0
+			if back.length() > 0.7:
+				_state = "flee"
 		"wander":
 			# Amble toward the current spot; hostiles snap to chase on sight.
 			if not neutral and dist < AGGRO_RANGE:
@@ -404,11 +476,15 @@ func take_hit(dmg: int, from_dir: Vector3) -> void:
 		return
 	hp -= dmg
 	_knockback = from_dir * 9.0
-	# Wanderers don't stay neutral about being hit with a plunger.
+	# Wanderers don't stay neutral about being hit with a plunger. But mid-
+	# Rush, survival beats revenge: stay fleeing, settle scores afterwards.
 	if neutral:
 		neutral = false
-		_state = "chase"
-		say(PROVOKED_LINES[randi_range(0, PROVOKED_LINES.size() - 1)], 2.0)
+		if _state != "flee" and _state != "hide":
+			_state = "chase"
+			say(PROVOKED_LINES[randi_range(0, PROVOKED_LINES.size() - 1)], 2.0)
+		else:
+			say("AFTER. YOU'RE DEAD AFTER.", 1.6)
 	for mi in _meshes:
 		mi.material_overlay = _flash_mat
 	get_tree().create_timer(0.09).timeout.connect(func() -> void:

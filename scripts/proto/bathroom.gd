@@ -84,6 +84,23 @@ var game_ended := false
 var _warn_cooldown := 0.0
 var rng := RandomNumberGenerator.new()
 
+## --- Rush (the entity) -----------------------------------------------------
+## Lights strobe for 5s (get to a stall!), then 4s of pitch black while he
+## sweeps the corridor. Anyone in the open - player or NPC - dies.
+# A JPEG despite the source file's .png name (same story as the slot art).
+const RUSH_TEX := preload("res://assets/rush.jpg")
+const RUSH_FLICKER_TIME := 5.0
+const RUSH_DARK_TIME := 4.0
+const RUSH_KILL_RADIUS := 1.8
+
+var _rush_state := ""  # "" / "flicker" / "dark"
+var _rush_timer := 0.0
+var _next_rush := 0.0
+var _rush_node: Node3D = null
+var _rush_speed := 0.0
+var _rush_wobble := 0.0
+var _pending_death_text := ""
+
 var _bar: ProgressBar
 var _msg: Label
 var _msg_tween: Tween
@@ -346,6 +363,64 @@ func _spawn_starting_wanderers() -> void:
 			get_tree().root.get_texture().get_image().save_png("res://cart_check2.png")
 			get_tree().quit()
 		)
+	if dbg == "rush":
+		# Full Rush sequence: flicker, blackout, sweep. Player stands in the
+		# open on purpose - he should not survive this.
+		get_tree().create_timer(1.5).timeout.connect(func() -> void:
+			_spawn_wanderer(Vector3(-1.2, 0, -8.0))
+			_spawn_wanderer(Vector3(1.0, 0, -11.0))
+			_start_rush()
+			print("RUSH-TEST started, enemies=", get_tree().get_nodes_in_group("enemies").size())
+		)
+		get_tree().create_timer(4.0).timeout.connect(func() -> void:
+			var hidden := 0
+			for e in get_tree().get_nodes_in_group("enemies"):
+				if e is ProtoEnemy and (e as ProtoEnemy).is_hidden():
+					hidden += 1
+			print("RUSH-TEST flicker phase, hidden=", hidden)
+			get_tree().root.get_texture().get_image().save_png("res://rush1.png")
+		)
+		get_tree().create_timer(8.35).timeout.connect(func() -> void:
+			print("RUSH-TEST dark phase, rush_z=", _rush_node.position.z if _rush_node else 0.0,
+				" player_z=", player.global_position.z)
+			get_tree().root.get_texture().get_image().save_png("res://rush2.png")
+		)
+		get_tree().create_timer(11.0).timeout.connect(func() -> void:
+			print("RUSH-TEST over: game_ended=", game_ended,
+				" overlay=", _overlay_label.text.replace("\n", " / "),
+				" enemies_left=", get_tree().get_nodes_in_group("enemies").size())
+			get_tree().root.get_texture().get_image().save_png("res://rush3.png")
+			get_tree().quit()
+		)
+	if dbg == "rushsafe":
+		# Survival path: player tucked inside an open stall must live, and
+		# the corridor must come back to life afterwards.
+		get_tree().create_timer(1.5).timeout.connect(func() -> void:
+			for s in stalls:
+				if s.global_position.z < -5.0 and s.global_position.z > -16.0 and not s.is_open:
+					s.knock()
+					if s.has_seated_occupant():
+						continue
+					player.global_position = s.interior_point() + Vector3(0, 0.1, 0)
+					break
+			print("RUSHSAFE-TEST in_stall=", _player_in_stall())
+			_start_rush()
+		)
+		for t in [4.0, 6.4, 8.0, 10.0]:
+			get_tree().create_timer(t).timeout.connect(func() -> void:
+				var near := 0
+				for e in get_tree().get_nodes_in_group("enemies"):
+					if e.global_position.distance_to(player.global_position) < 1.6:
+						near += 1
+				print("RUSHSAFE-TEST t=", t, " pos=", player.global_position,
+					" in_stall=", _player_in_stall(), " npcs_near=", near,
+					" ended=", game_ended)
+			)
+		get_tree().create_timer(11.2).timeout.connect(func() -> void:
+			print("RUSHSAFE-TEST game_ended=", game_ended, " rush_state='", _rush_state,
+				"' lights_back=", not get_tree().get_nodes_in_group("flicker_lights")[0].blackout)
+			get_tree().quit()
+		)
 	if dbg == "wanderer":
 		# Stand in front of a fresh wanderer and screenshot the new model.
 		get_tree().create_timer(1.5).timeout.connect(func() -> void:
@@ -387,6 +462,8 @@ func _process(delta: float) -> void:
 		return
 
 	_warn_cooldown = maxf(0.0, _warn_cooldown - delta)
+
+	_tick_rush(delta)
 
 	# Keep the corridor generated ahead of the player.
 	while next_z > player.global_position.z - GEN_AHEAD:
@@ -645,6 +722,145 @@ func _spawn_tentacle(stall: Stall) -> void:
 				.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
 			tw.tween_callback(wrapper.queue_free)
 	)
+
+
+# --- Rush -------------------------------------------------------------------
+
+func _tick_rush(delta: float) -> void:
+	match _rush_state:
+		"":
+			if _next_rush <= 0.0:
+				# First scare lands a bit sooner than the steady rhythm.
+				_next_rush = rng.randf_range(30.0, 45.0)
+			_next_rush -= delta
+			# Hold the scare until the corridor has grown some hiding spots.
+			if _next_rush <= 0.0 and stall_count > 8:
+				_start_rush()
+		"flicker":
+			_rush_timer -= delta
+			if _rush_timer <= 0.0:
+				_rush_go_dark()
+		"dark":
+			_rush_timer -= delta
+			_move_rush(delta)
+			if _rush_timer <= 0.0:
+				_end_rush()
+
+
+func _start_rush() -> void:
+	_rush_state = "flicker"
+	_rush_timer = RUSH_FLICKER_TIME
+	for l in get_tree().get_nodes_in_group("flicker_lights"):
+		l.panic = true
+	_show_message("THE LIGHTS-- GET IN A STALL. NOW.")
+
+	# Every NPC drops what they're doing and sprints for cover. Including
+	# the one that was mid-swing at your face. Especially that one.
+	for e in get_tree().get_nodes_in_group("enemies"):
+		if e is ProtoEnemy:
+			var spot := _nearest_hiding_spot(e.global_position)
+			(e as ProtoEnemy).rush_panic(spot)
+
+
+## Nearest usable stall interior for a panicking NPC. Open and unoccupied
+## preferred; if there's nothing, the nearest door to die in front of.
+func _nearest_hiding_spot(from: Vector3) -> Vector3:
+	var best_spot := from
+	var best_d := INF
+	var fallback := from
+	var fallback_d := INF
+	for s in stalls:
+		var d := s.global_position.distance_to(from)
+		if d < fallback_d:
+			fallback_d = d
+			fallback = s.to_global(Vector3(0, 0, -0.6))
+		if s.is_open and not s.has_seated_occupant() and d < best_d:
+			best_d = d
+			best_spot = s.interior_point()
+	return best_spot if best_d < INF else fallback
+
+
+func _rush_go_dark() -> void:
+	_rush_state = "dark"
+	_rush_timer = RUSH_DARK_TIME
+	for l in get_tree().get_nodes_in_group("flicker_lights"):
+		l.panic = false
+		l.blackout = true
+	_show_message("")
+
+	# The entity itself: the painted face, glowing in the dark, coming from
+	# the deep end of the corridor and screaming past the spawn side.
+	_rush_node = Node3D.new()
+	add_child(_rush_node)
+	var quad := QuadMesh.new()
+	quad.size = Vector2(2.6, 2.6)
+	var mi := MeshInstance3D.new()
+	mi.mesh = quad
+	var mat := StandardMaterial3D.new()
+	mat.albedo_texture = RUSH_TEX
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	# Additive: the black canvas vanishes, the face and eyes burn.
+	mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+	mat.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
+	mat.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
+	mi.material_override = mat
+	_rush_node.add_child(mi)
+	var glow := OmniLight3D.new()
+	glow.light_color = Color(1.0, 0.15, 0.1)
+	glow.light_energy = 2.6
+	glow.omni_range = 13.0
+	_rush_node.add_child(glow)
+
+	var start_z := player.global_position.z - 60.0
+	var end_z := player.global_position.z + 24.0
+	_rush_speed = (end_z - start_z) / RUSH_DARK_TIME
+	_rush_node.position = Vector3(0, 1.45, start_z)
+
+
+func _move_rush(delta: float) -> void:
+	if _rush_node == null:
+		return
+	_rush_wobble += delta * 9.0
+	_rush_node.position.z += _rush_speed * delta
+	_rush_node.position.x = sin(_rush_wobble) * 0.9
+	_rush_node.position.y = 1.45 + sin(_rush_wobble * 1.7) * 0.35
+
+	var rz := _rush_node.position.z
+	# The player: caught in the open when he passes = dead. No wounds, no
+	# knockback, no negotiation.
+	if absf(rz - player.global_position.z) < RUSH_KILL_RADIUS and not _player_in_stall():
+		_pending_death_text = "RUSH.\n\nYou were not in a stall."
+		player.die_instantly()
+		return
+	# NPCs still scrambling in the corridor get the same treatment.
+	for e in get_tree().get_nodes_in_group("enemies"):
+		if e is ProtoEnemy and not (e as ProtoEnemy).is_hidden() \
+				and absf(e.global_position.z - rz) < RUSH_KILL_RADIUS \
+				and absf(e.global_position.y) < 2.0:
+			(e as ProtoEnemy).rush_die()
+
+
+func _end_rush() -> void:
+	_rush_state = ""
+	_next_rush = rng.randf_range(40.0, 70.0)
+	for l in get_tree().get_nodes_in_group("flicker_lights"):
+		l.blackout = false
+	if _rush_node:
+		_rush_node.queue_free()
+		_rush_node = null
+	for e in get_tree().get_nodes_in_group("enemies"):
+		if e is ProtoEnemy:
+			(e as ProtoEnemy).rush_over()
+	_show_message("...it's gone. For now.")
+
+
+## Physically inside any stall's footprint (door open or closed) = safe.
+func _player_in_stall() -> bool:
+	for s in stalls:
+		var lp: Vector3 = s.to_local(player.global_position)
+		if absf(lp.x) < 0.9 and lp.z > 0.0 and lp.z < Stall.STALL_DEPTH + 0.15:
+			return true
+	return false
 
 
 ## Keep the floating E-prompt glued to the current interact target.
@@ -1177,10 +1393,10 @@ func _on_player_hit() -> void:
 
 
 func _on_player_died() -> void:
-	_end_game(false)
+	_end_game(false, _pending_death_text)
 
 
-func _end_game(won: bool) -> void:
+func _end_game(won: bool, custom := "") -> void:
 	if game_ended:
 		return
 	game_ended = true
@@ -1188,6 +1404,8 @@ func _end_game(won: bool) -> void:
 	_overlay.visible = true
 	if won:
 		_overlay_label.text = "RELIEF AT LAST.\n\nPress R to queue again"
+	elif custom != "":
+		_overlay_label.text = custom + "\n\nPress R to try again"
 	else:
 		_overlay_label.text = "You didn't make it.\n\nWe don't talk about what happened.\n\nPress R to try again"
 

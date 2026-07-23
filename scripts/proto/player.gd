@@ -229,6 +229,15 @@ func _attack() -> void:
 	tw.tween_property(_arm_pivot, "position:z", -0.5, 0.18).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
 
 
+## Killed outright (Rush). No urgency ceremony - lights out, full stop.
+func die_instantly() -> void:
+	if _dead:
+		return
+	_dead = true
+	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	died.emit()
+
+
 func take_hit(from_dir: Vector3) -> void:
 	if _dead:
 		return
