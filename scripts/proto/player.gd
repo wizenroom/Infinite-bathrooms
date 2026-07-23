@@ -11,6 +11,7 @@ signal inventory_changed
 const PLUNGER_SCENE := preload("res://assets/plunger.glb")
 const ARM_SCENE := preload("res://assets/arm.glb")
 const BROOM_SCENE := preload("res://assets/janitor_broom.glb")
+const BODY_SCENE := preload("res://assets/man_animated.glb")
 
 ## Baked center of the arm mesh (cancelled at mount time).
 const ARM_CENTER := Vector3(-7.351, 10.096, -0.350)
@@ -46,6 +47,10 @@ var _arm_pivot: Node3D
 var _arm: Node3D
 var _plunger: Node3D = null
 var _broom: Node3D = null
+var _body: Node3D = null
+var _body_anim: AnimationPlayer = null
+## First seconds after spawn: snap to floor every frame (kills roof pops).
+var _spawn_grace := 2.5
 
 
 func _ready() -> void:
@@ -91,6 +96,19 @@ func _ready() -> void:
 	arm_inst.position = -ARM_CENTER
 	_arm.add_child(arm_inst)
 
+	# Full body ready from the start (hidden until you sit - then the camera
+	# pulls out and you watch yourself on the throne, Sit anim playing).
+	_body = BODY_SCENE.instantiate()
+	_body.rotation.y = PI
+	_body.position = Vector3(0, 0.35, 0)
+	_body.visible = false
+	add_child(_body)
+	var anims := _body.find_children("*", "AnimationPlayer", true, false)
+	if anims.size() > 0:
+		_body_anim = anims[0]
+		if _body_anim.has_animation("Sit"):
+			_body_anim.get_animation("Sit").loop_mode = Animation.LOOP_NONE
+
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
 
@@ -98,6 +116,8 @@ func _unhandled_input(event: InputEvent) -> void:
 	if _dead:
 		return
 	if event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
+		if locked:
+			return  # seated: the camera is doing its own thing
 		rotation.y -= event.relative.x * MOUSE_SENS
 		_pitch = clampf(_pitch - event.relative.y * MOUSE_SENS, -1.2, 1.2)
 		_head.rotation.x = _pitch
@@ -106,7 +126,7 @@ func _unhandled_input(event: InputEvent) -> void:
 			Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 	elif event is InputEventKey and event.pressed and event.physical_keycode == KEY_ESCAPE:
 		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
-	elif event is InputEventKey and event.pressed and not event.echo:
+	elif event is InputEventKey and event.pressed and not event.echo and not locked:
 		match event.physical_keycode:
 			KEY_1: _equip(0)
 			KEY_2: _equip(1)
@@ -152,9 +172,15 @@ func _physics_process(delta: float) -> void:
 
 	move_and_slide()
 
-	# Failsafe: physics depenetration can very occasionally pop a body through
-	# the ceiling; drop back inside instead of walking on the roof.
-	if global_position.y > 2.4:
+	# Roof-spawn killer. During grace, snap to the floor every frame no
+	# matter what depenetration did. After that, still never allow y > 1.5
+	# (stall tops / ceiling) - nothing walkable lives up there.
+	if _spawn_grace > 0.0:
+		_spawn_grace -= delta
+		if global_position.y > 0.15 or global_position.y < -0.05:
+			global_position.y = 0.1
+			velocity.y = 0.0
+	elif global_position.y > 1.5 or global_position.y < -0.5:
 		global_position.y = 0.1
 		velocity.y = 0.0
 
@@ -203,6 +229,53 @@ func take_hit(from_dir: Vector3) -> void:
 	tw.tween_property(_head, "rotation:z", 0.06, 0.05)
 	tw.tween_property(_head, "rotation:z", 0.0, 0.2)
 	hit.emit()
+
+
+## Sit down: your own body appears on the throne playing the Sit animation
+## and the camera pulls out through the door so you can watch yourself.
+## Movement, attacks and mouse look are locked until stand_up().
+func sit_down() -> void:
+	locked = true
+	_body.visible = true
+	if _body_anim and _body_anim.has_animation("Sit"):
+		_body_anim.play("Sit")
+		# When the sit-down motion finishes, freeze on the seated pose.
+		if not _body_anim.animation_finished.is_connected(_hold_sit_pose):
+			_body_anim.animation_finished.connect(_hold_sit_pose)
+	_arm_pivot.visible = false
+	_pitch = 0.0
+	_head.rotation.x = 0.0
+
+	# Camera swings out in front (the open door side) and turns back around
+	# so you can see yourself sitting - same man model the NPCs use.
+	var tw := create_tween().set_parallel()
+	tw.tween_property(_cam, "position", Vector3(0, 0.25, -2.1), 0.45) \
+		.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	tw.tween_property(_cam, "rotation:y", PI, 0.45) \
+		.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	tw.tween_property(_cam, "rotation:x", -0.18, 0.45)
+
+
+func _hold_sit_pose(_anim_name: StringName) -> void:
+	if _body_anim and _body_anim.has_animation("Sit"):
+		_body_anim.play("Sit")
+		_body_anim.seek(_body_anim.get_animation("Sit").length - 0.02)
+		_body_anim.pause()
+
+
+## Reverse of sit_down; unlocks controls once the camera is back in the skull.
+func stand_up() -> void:
+	if _body:
+		_body.visible = false
+	if _body_anim:
+		_body_anim.stop()
+	_arm_pivot.visible = true
+	var tw := create_tween().set_parallel()
+	tw.tween_property(_cam, "position", Vector3.ZERO, 0.35) \
+		.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	tw.tween_property(_cam, "rotation:y", 0.0, 0.35)
+	tw.tween_property(_cam, "rotation:x", 0.0, 0.35)
+	tw.chain().tween_callback(func() -> void: locked = false)
 
 
 func give_plunger() -> void:

@@ -49,13 +49,17 @@ func _ready() -> void:
 	collision_mask = 1
 
 	# A sphere instead of a body-shaped box: long boxes wedge on stall door
-	# frames and wall corners, spheres roll around them.
+	# frames and wall corners, spheres roll around them. Built DISABLED so
+	# the one frame between add_child and sleep() can't shove the player.
 	_col = CollisionShape3D.new()
 	var sphere := SphereShape3D.new()
 	sphere.radius = 0.38
 	_col.shape = sphere
 	_col.position.y = 0.38
+	_col.disabled = true
 	add_child(_col)
+	# Park far below BEFORE anything else can resolve overlaps at the origin.
+	position = Vector3(0, -60, 0)
 
 	_visual = Node3D.new()
 	add_child(_visual)
@@ -98,9 +102,13 @@ func sleep() -> void:
 	sleeping = true
 	visible = false
 	set_physics_process(false)
-	_col.set_deferred("disabled", true)
+	if _col:
+		_col.disabled = true
+	velocity = Vector3.ZERO
 	if is_inside_tree():
 		global_position = Vector3(0, -60, 0)
+	else:
+		position = Vector3(0, -60, 0)
 	remove_from_group("enemies")
 	remove_from_group("crawlers")
 
@@ -112,12 +120,14 @@ func wake(pos: Vector3) -> void:
 	_state = "chase"
 	_knockback = Vector3.ZERO
 	_stuck_time = 0.0
+	velocity = Vector3.ZERO
 	_visual.rotation = Vector3.ZERO
 	_visual.position = Vector3.ZERO
+	# Place first, THEN enable collision - never the other way around.
 	global_position = pos
 	visible = true
+	_col.disabled = false
 	set_physics_process(true)
-	_col.set_deferred("disabled", false)
 	add_to_group("enemies")
 	add_to_group("crawlers")
 

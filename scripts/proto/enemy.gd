@@ -2,10 +2,16 @@ class_name ProtoEnemy
 extends CharacterBody3D
 ## Melee occupant: chases the player, telegraphs with the punch wind-up
 ## animation, then lunges. Three fist hits (two plunger hits) to kill.
+##
+## Also doubles as the WANDERER when `neutral` is true: same man, but he's
+## just... here, wandering the bathroom like you. Harmless until someone
+## hits him. Hostiles use the same wander/idle brain whenever the player is
+## out of aggro range, so nobody stands around like a mannequin anymore.
 
 const MAN_SCENE := preload("res://assets/man_animated.glb")
 
 const SPEED := 3.7
+const WANDER_SPEED := 1.4
 const AGGRO_RANGE := 11.0
 const WINDUP_TIME := 0.4
 const STRIKE_TIME := 0.25
@@ -13,12 +19,17 @@ const RECOVER_TIME := 0.5
 const ATTACK_ANIM_TIME := WINDUP_TIME + STRIKE_TIME
 
 var hp := 3
+## Wanderers: no aggro until provoked (hit once).
+var neutral := false
 
 var _state := "chase"
 var _timer := 0.0
 var _has_struck := false
 var _knockback := Vector3.ZERO
 var _strike_dir := Vector3.ZERO
+var _wander_target := Vector3.ZERO
+var _wander_timer := 0.0
+var _idle_timer := 0.0
 var _visual: Node3D
 var _anim: AnimationPlayer
 var _meshes: Array = []
@@ -57,7 +68,18 @@ func _ready() -> void:
 		for anim_name in ["Walk", "Run", "Sit"]:
 			if _anim.has_animation(anim_name):
 				_anim.get_animation(anim_name).loop_mode = Animation.LOOP_LINEAR
-		_play("Run")
+
+	if neutral:
+		# Position isn't final until the manager places us; pick a target on
+		# the first physics tick instead.
+		_state = "idle"
+		_idle_timer = randf_range(0.2, 1.5)
+
+
+func _pick_wander_target() -> void:
+	_wander_target = Vector3(randf_range(-2.0, 2.0), 0, global_position.z + randf_range(-8.0, 8.0))
+	_wander_timer = randf_range(3.0, 6.0)
+	_state = "wander"
 
 
 func _play(anim_name: String, speed := 1.0) -> void:
@@ -80,17 +102,44 @@ func _physics_process(delta: float) -> void:
 	var dir := to_player.normalized()
 
 	match _state:
+		"wander":
+			# Amble toward the current spot; hostiles snap to chase on sight.
+			if not neutral and dist < AGGRO_RANGE:
+				_state = "chase"
+			else:
+				_wander_timer -= delta
+				var to_t := _wander_target - global_position
+				to_t.y = 0
+				if _wander_timer <= 0.0 or to_t.length() < 0.5:
+					_state = "idle"
+					_idle_timer = randf_range(1.0, 3.5)
+					velocity.x = _knockback.x
+					velocity.z = _knockback.z
+				else:
+					var wd := to_t.normalized()
+					velocity.x = wd.x * WANDER_SPEED + _knockback.x
+					velocity.z = wd.z * WANDER_SPEED + _knockback.z
+					_play("Walk", 0.65)
+		"idle":
+			# Stand around, sway a little, then pick somewhere else to be.
+			velocity.x = _knockback.x
+			velocity.z = _knockback.z
+			if not neutral and dist < AGGRO_RANGE:
+				_state = "chase"
+			else:
+				_idle_timer -= delta
+				_play("Walk", 0.1)
+				if _idle_timer <= 0.0:
+					_pick_wander_target()
 		"chase":
 			if dist > AGGRO_RANGE:
-				# Out of range: loiter menacingly instead of chasing.
-				velocity.x = _knockback.x
-				velocity.z = _knockback.z
-				_play("Walk", 0.3)
+				# Lost interest: go back to wandering the bathroom.
+				_pick_wander_target()
 			else:
 				velocity.x = dir.x * SPEED + _knockback.x
 				velocity.z = dir.z * SPEED + _knockback.z
 				_play("Run")
-			if dist < 1.9:
+			if _state == "chase" and dist < 1.9:
 				_state = "windup"
 				_timer = WINDUP_TIME
 				if _anim and _anim.has_animation("Attack_Punch"):
@@ -145,6 +194,10 @@ func take_hit(dmg: int, from_dir: Vector3) -> void:
 		return
 	hp -= dmg
 	_knockback = from_dir * 9.0
+	# Wanderers don't stay neutral about being hit with a plunger.
+	if neutral:
+		neutral = false
+		_state = "chase"
 	for mi in _meshes:
 		mi.material_overlay = _flash_mat
 	get_tree().create_timer(0.09).timeout.connect(func() -> void:

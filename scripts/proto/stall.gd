@@ -9,10 +9,9 @@ extends Node3D
 ## that we cancel out. "Opening" the door = swapping closed -> open model.
 ##
 ## Signs on the models do the signaling: stalls with a man inside use the
-## OCCUPIED variant, and EMPTY/LOOT/FREE use the VACANT variant - so
-## "vacant" stalls are the gamble worth taking (gross, loot, or the prize).
+## OCCUPIED variant; EMPTY/LOOT use VACANT. Every toilet lid is openable.
 
-enum Outcome { HOSTILE, LOOT, FRIENDLY, EMPTY, FREE }
+enum Outcome { HOSTILE, LOOT, FRIENDLY, EMPTY }
 
 signal opened(stall: Stall, outcome: Outcome)
 
@@ -55,9 +54,12 @@ var is_open := false
 var seat_used := false
 ## Lid state: auto-opened on vacant reveals, hand-lifted (E) elsewhere.
 var lid_open := false
+## Set on the first knock: re-opening a closed-again stall has no surprises.
+var resolved := false
 
 var _model: Node3D = null
 var _lid: MeshInstance3D = null
+var _lid_pivot: Node3D = null
 var _door_collider: StaticBody3D
 var _occupant: Node3D = null
 
@@ -96,17 +98,32 @@ func knock() -> void:
 	if is_open:
 		return
 	is_open = true
-	_door_collider.queue_free()
+	if _door_collider:
+		_door_collider.queue_free()
+		_door_collider = null
 	_mount_model(true)
+
+	if resolved:
+		# Second visit: whatever was inside already happened.
+		return
+	resolved = true
 
 	if outcome == Outcome.HOSTILE or outcome == Outcome.FRIENDLY:
 		_seat_occupant()
-	if outcome == Outcome.FREE:
-		_bless_the_throne()
 	if not _has_occupant():
 		_open_lid()
 
 	opened.emit(self, outcome)
+
+
+## Push an open door shut again (only when nobody is on the throne).
+func close() -> void:
+	if not is_open or _occupant != null:
+		return
+	is_open = false
+	lid_open = false
+	_mount_model(false)
+	_build_door_collider()
 
 
 func _has_occupant() -> bool:
@@ -128,6 +145,11 @@ func can_sit() -> bool:
 	return is_open and _occupant == null
 
 
+## Someone is on the throne (and about to be very upset if you touch it).
+func has_seated_occupant() -> bool:
+	return is_open and _occupant != null
+
+
 ## Lift the lid by hand (stalls that revealed an occupant keep it down).
 func open_seat() -> void:
 	_open_lid()
@@ -143,6 +165,10 @@ func clear_occupant() -> void:
 func _mount_model(open: bool) -> void:
 	if _model:
 		_model.queue_free()
+	if _lid_pivot:
+		# The lifted lid was reparented out of _model; clean it up too.
+		_lid_pivot.queue_free()
+		_lid_pivot = null
 
 	var key: String
 	var scene: PackedScene
@@ -192,24 +218,6 @@ func _seat_occupant() -> void:
 			ap.advance(ap.get_animation("Sit").length - 0.02)
 
 
-## The free stall: golden light and a glowing lid (found by mesh signature).
-func _bless_the_throne() -> void:
-	var glow := OmniLight3D.new()
-	glow.light_color = Color(1.0, 0.85, 0.3)
-	glow.light_energy = 2.2
-	glow.omni_range = 2.8
-	glow.position = Vector3(0, 1.5, 1.0)
-	add_child(glow)
-
-	var gold := StandardMaterial3D.new()
-	gold.albedo_color = Color(1.0, 0.85, 0.3)
-	gold.emission_enabled = true
-	gold.emission = Color(1.0, 0.8, 0.2)
-	gold.emission_energy_multiplier = 1.5
-	if _lid:
-		_lid.material_override = gold
-
-
 ## Swing the toilet lid up around its rear (tank-side) edge. The lid is a
 ## separate mesh in the GLB, found by its AABB size signature; we wrap it in
 ## a pivot placed on the hinge edge and rotate that.
@@ -225,11 +233,14 @@ func _open_lid() -> void:
 	var hinge := box.get_center()
 	hinge.z = box.end.z - 0.02  # rear edge, next to the tank
 
-	var pivot := Node3D.new()
-	add_child(pivot)
-	pivot.position = hinge
-	_lid.reparent(pivot)
-	pivot.rotation.x = deg_to_rad(100.0)
+	_lid_pivot = Node3D.new()
+	add_child(_lid_pivot)
+	_lid_pivot.position = hinge
+	_lid.reparent(_lid_pivot)
+	# Swing up over ~0.25s instead of teleporting open - reads as a real lid.
+	var tw := create_tween()
+	tw.tween_property(_lid_pivot, "rotation:x", deg_to_rad(100.0), 0.25) \
+		.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 
 
 func _build_collision() -> void:
@@ -239,7 +250,10 @@ func _build_collision() -> void:
 	_coll_box(walls, Vector3(0.08, STALL_HEIGHT, STALL_DEPTH), Vector3(-half_w, STALL_HEIGHT / 2.0, STALL_DEPTH / 2.0))
 	_coll_box(walls, Vector3(0.08, STALL_HEIGHT, STALL_DEPTH), Vector3(half_w, STALL_HEIGHT / 2.0, STALL_DEPTH / 2.0))
 	_coll_box(walls, Vector3(STALL_WIDTH, STALL_HEIGHT, 0.08), Vector3(0, STALL_HEIGHT / 2.0, STALL_DEPTH))
+	_build_door_collider()
 
+
+func _build_door_collider() -> void:
 	_door_collider = StaticBody3D.new()
 	add_child(_door_collider)
 	_coll_box(_door_collider, Vector3(STALL_WIDTH, STALL_HEIGHT, 0.08), Vector3(0, STALL_HEIGHT / 2.0, 0))

@@ -35,11 +35,12 @@ const PROP_DEFS := [
 		"col_size": Vector3(0.35, 0.85, 0.25), "col_pos": Vector3(0, 0.42, 0) },
 	{ "scene": preload("res://assets/plant.glb"), "off": Vector3(0, -0.32, 0), "scale": 0.6 },
 	{ "scene": preload("res://assets/lamp.glb"), "off": Vector3(0, -0.5709, 0), "scale": 0.55,
-		"col_size": Vector3(0.9, 3.7, 0.9), "col_pos": Vector3(0, 1.85, 0) },
+		"col_size": Vector3(0.7, 3.4, 0.7), "col_pos": Vector3(0, 1.7, 0) },
 ]
 
 const SINK_SCENE := preload("res://assets/sink_table.glb")
 const SINK_OFF := Vector3(11.8065, -0.1394, 36.0145)
+const TENTACLE_SCENE := preload("res://assets/tentacle.fbx")
 const TREE_SCENE := preload("res://assets/tree.glb")
 const TREE_OFF := Vector3(1.438, -0.0163, -0.9305)
 
@@ -60,7 +61,7 @@ const GEN_AHEAD := 45.0
 const KNOCK_RANGE := 3.0
 const LIGHT_EVERY_N_PAIRS := 5
 
-# Knock outcome weights (FREE is placed deterministically, not rolled).
+# Knock outcome weights. No "prize stall" - every toilet is a gamble.
 const W_HOSTILE := 45
 const W_LOOT := 20
 const W_FRIENDLY := 15
@@ -72,9 +73,6 @@ var hud_parent: Node = null
 var player: ProtoPlayer
 var stalls: Array[Stall] = []
 var stall_count := 0
-var free_stall_index := 0
-var free_stall: Stall = null
-var _free_placed := false
 var next_z := -4.0
 var next_tile_z := 4.0
 var pair_count := 0
@@ -98,29 +96,64 @@ var _crawler_pool: Array = []
 
 var _slot_frames: Array = []
 var _slot_labels: Array = []
+var _prompt: Label3D
+var _prompt_hud: Label
+var _prompt_pulse := 0.0
 
 
 func _ready() -> void:
 	rng.randomize()
-	free_stall_index = 12 + rng.randi_range(0, 6)
 
 	_build_environment()
 	_build_hud()
 
 	player = PLAYER_SCENE.instantiate()
+	player.position = Vector3(0, 0.1, 0)
 	add_child(player)
-	player.global_position = Vector3(0, 0.1, 0)
 	player.died.connect(_on_player_died)
 	player.hit.connect(_on_player_hit)
 	player.inventory_changed.connect(_refresh_inventory)
 	_refresh_inventory()  # show HAND in slot 1 from the start
 
-	for i in 2:
-		var c: ProtoCrawler = CRAWLER_ENEMY_SCENE.instantiate()
-		add_child(c)
-		_crawler_pool.append(c)
+	# Pool crawlers AFTER the player is on the floor, and only once physics
+	# has settled - building them in the same frame as the player was the
+	# roof-launch culprit.
+	get_tree().create_timer(0.35).timeout.connect(func() -> void:
+		for i in 2:
+			var c: ProtoCrawler = CRAWLER_ENEMY_SCENE.instantiate()
+			add_child(c)
+			_crawler_pool.append(c)
+	)
 
-	_show_message("Every stall is OCCUPIED... except one. Find it. (E = knock)", 4.5)
+	# Floating 3D "E - ..." over the target (retro via the viewport) PLUS a
+	# crisp HUD copy so the prompt is never missable through the pixel mess.
+	_prompt = Label3D.new()
+	_prompt.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	_prompt.font_size = 96
+	_prompt.outline_size = 22
+	_prompt.modulate = Color(0.85, 1.0, 0.55)
+	_prompt.outline_modulate = Color(0, 0, 0, 0.95)
+	_prompt.no_depth_test = true
+	_prompt.pixel_size = 0.0045
+	_prompt.visible = false
+	add_child(_prompt)
+
+	# Wanderers further down the hall - never on top of the spawn tile.
+	# Deferred so the player's spawn transform is fully committed first;
+	# spawning another CharacterBody3D in the same _ready was eating the
+	# player's global_position (they both ended up on the wanderer tile).
+	call_deferred("_spawn_starting_wanderers")
+
+	_show_message("The bathroom goes on forever. Hold it together.", 4.5)
+
+
+func _spawn_starting_wanderers() -> void:
+	# Re-assert spawn before/after - belt and suspenders against the
+	# same-frame CharacterBody3D transform clobber.
+	player.global_position = Vector3(0, 0.1, 0)
+	_spawn_wanderer(Vector3(-1.0, 0, -14.0))
+	_spawn_wanderer(Vector3(1.2, 0, -22.0))
+	player.global_position = Vector3(0, 0.1, 0)
 
 	# Dev aid: PROTO_DEBUG=knock / PROTO_DEBUG=lid auto-opens the first
 	# hostile / vacant stall so the interior can be checked without playing.
@@ -165,26 +198,78 @@ func _ready() -> void:
 			player.add_item("broom")
 		)
 	if dbg == "sit":
-		# End-to-end E-key path: face an EMPTY stall, knock, then sit twice.
+		# End-to-end E-key path: knock an EMPTY stall, walk in, sit, resolve.
+		var target: Array = [null]
 		get_tree().create_timer(1.5).timeout.connect(func() -> void:
 			for s in stalls:
 				if s.outcome == Stall.Outcome.EMPTY and not s.is_open and s.global_position.z < -6.0:
+					target[0] = s
 					player.global_position = s.global_position + s.global_transform.basis.z * -1.8
 					var dir := s.global_position - player.global_position
 					player.rotation.y = atan2(-dir.x, -dir.z)
-					_try_knock()
+					print("SIT-TEST target1=", _interact_target().get("action"))
+					_interact()
 					print("SIT-TEST knocked: open=", s.is_open, " lid=", s.lid_open)
+					# Step onto the tile in front of the bowl.
+					player.global_position = s.to_global(Vector3(0, 0.1, 0.5))
 					break
 		)
 		get_tree().create_timer(3.0).timeout.connect(func() -> void:
 			print("SIT-TEST urgency before=", player.urgency)
 			player.urgency = 30.0
-			_try_knock()
+			print("SIT-TEST target2=", _interact_target().get("action"))
+			_interact()
 		)
-		get_tree().create_timer(4.5).timeout.connect(func() -> void:
+		get_tree().create_timer(7.0).timeout.connect(func() -> void:
 			print("SIT-TEST urgency after=", player.urgency, " locked=", player.locked,
 				" msg=", _msg.text, " player_y=", player.global_position.y)
+			var s: Stall = target[0]
+			if s:
+				# Walk back out and close the door behind you like a gentleman.
+				player.global_position = s.to_global(Vector3(0, 0.1, -1.3))
+				var dir := s.global_position - player.global_position
+				player.rotation.y = atan2(-dir.x, -dir.z)
+				print("SIT-TEST target3=", _interact_target().get("action"))
+				_interact()
+				print("SIT-TEST closed: open=", s.is_open)
+				print("SIT-TEST reopen-label=", _interact_target().get("label"))
 			get_tree().quit()
+		)
+	if dbg == "disturb":
+		# Yank the seat from under a seated occupant; he must go hostile.
+		get_tree().create_timer(1.5).timeout.connect(func() -> void:
+			for s in stalls:
+				if (s.outcome == Stall.Outcome.FRIENDLY or s.outcome == Stall.Outcome.HOSTILE) \
+						and not s.is_open and s.global_position.z < -6.0:
+					player.global_position = s.global_position + s.global_transform.basis.z * -1.8
+					var dir := s.global_position - player.global_position
+					player.rotation.y = atan2(-dir.x, -dir.z)
+					s.knock()
+					print("DISTURB-TEST outcome=", s.outcome, " seated=", s.has_seated_occupant())
+					if s.has_seated_occupant():
+						print("DISTURB-TEST target=", _interact_target().get("action"))
+						var before := get_tree().get_nodes_in_group("enemies").size()
+						_interact()
+						print("DISTURB-TEST enemies ", before, " -> ",
+							get_tree().get_nodes_in_group("enemies").size(),
+							" msg=", _msg.text)
+					break
+		)
+		get_tree().create_timer(3.5).timeout.connect(func() -> void:
+			print("DISTURB-TEST player_y=", player.global_position.y)
+			get_tree().quit()
+		)
+	if dbg == "tent":
+		# Visual check: tentacle erupting from an opened bowl.
+		get_tree().create_timer(1.5).timeout.connect(func() -> void:
+			for s in stalls:
+				if not s.is_open and s.global_position.z < -5.0 and s.global_position.z > -12.0:
+					s.knock()
+					_spawn_tentacle(s)
+					player.global_position = s.to_global(Vector3(0, 0.1, -2.0))
+					var dir := s.global_position + Vector3(0, 0.8, 0) - player.global_position
+					player.rotation.y = atan2(-dir.x, -dir.z)
+					break
 		)
 	if dbg == "top":
 		get_tree().create_timer(1.0).timeout.connect(func() -> void:
@@ -229,85 +314,189 @@ func _process(delta: float) -> void:
 
 	_bar.value = player.urgency
 
-	_check_win()
+	_update_prompt()
 
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and not event.echo:
 		if event.physical_keycode == KEY_E and not game_ended:
-			_try_knock()
+			_interact()
 		elif event.physical_keycode == KEY_R and game_ended:
 			get_tree().reload_current_scene()
 
 
-func _try_knock() -> void:
-	# Nearest stall the player is roughly looking toward. Closed = knock;
-	# open with an unoccupied throne = sit on it.
+## What would E do right now? One resolver feeds both the floating prompt
+## and the actual keypress, so what you read is always what you get.
+## Returns {} or { "action", "stall", "point", "label" }.
+func _interact_target() -> Dictionary:
+	if player.locked or game_ended:
+		return {}
 	var f := player.facing()
-	var best: Stall = null
-	var best_dist := KNOCK_RANGE
+	var best: Dictionary = {}
+	var best_score := 0.15
 	for s in stalls:
-		if not s.is_open or s.can_sit():
-			var to_s := s.global_position - player.global_position
-			to_s.y = 0
-			var d := to_s.length()
-			if d < best_dist and f.dot(to_s.normalized()) > 0.25:
-				best_dist = d
-				best = s
-	if best == null:
+		var lp: Vector3 = s.to_local(player.global_position)
+		var inside: bool = absf(lp.x) < 0.85 and lp.z > -0.15 and lp.z < Stall.STALL_DEPTH + 0.1
+		# Standing in the doorway, looking in - still counts as "at the toilet".
+		var at_doorway: bool = absf(lp.x) < 0.9 and lp.z > -1.4 and lp.z < 0.35
+		var looking_in: bool = f.dot(s.global_transform.basis.z) > 0.35
+		var cand := {}
+
+		if not s.is_open:
+			cand = { "action": "knock" if not s.resolved else "open", "stall": s,
+				"point": s.to_global(Vector3(0, 1.4, -0.12)), "max_d": KNOCK_RANGE,
+				"label": "E - KNOCK" if not s.resolved else "E - OPEN DOOR" }
+		elif s.has_seated_occupant():
+			# Occupied seat is ALWAYS openable - yanking it angers them.
+			cand = { "action": "disturb", "stall": s,
+				"point": s.to_global(Vector3(0, 1.15, 0.95)), "max_d": 3.2,
+				"label": "E - OPEN LID" }
+		elif (inside or (at_doorway and looking_in)) and not s.seat_used:
+			# Prefer the toilet over closing the door when you're aimed at it.
+			cand = { "action": "sit" if s.lid_open else "lid", "stall": s,
+				"point": s.to_global(Vector3(0, 1.05, 1.0)), "max_d": 3.2,
+				"label": "E - SIT" if s.lid_open else "E - OPEN LID" }
+		else:
+			cand = { "action": "close", "stall": s,
+				"point": s.to_global(Vector3(0, 1.4, -0.12)), "max_d": 2.4,
+				"label": "E - CLOSE DOOR" }
+
+		var to_p: Vector3 = cand["point"] - player.global_position
+		to_p.y = 0
+		var d := to_p.length()
+		if d > cand["max_d"]:
+			continue
+		var score: float = f.dot(to_p.normalized()) if d > 0.01 else 1.0
+		if inside:
+			score += 2.5
+		elif at_doorway and looking_in and cand["action"] in ["lid", "sit", "disturb"]:
+			score += 1.2
+		if score > best_score:
+			best_score = score
+			best = cand
+	return best
+
+
+func _interact() -> void:
+	var t := _interact_target()
+	if t.is_empty():
 		return
-	if best.is_open:
-		_sit_on(best)
+	var stall: Stall = t["stall"]
+	match t["action"]:
+		"knock", "open":
+			stall.knock()
+		"close":
+			stall.close()
+		"lid":
+			stall.open_seat()
+			_show_message("You lift the lid...")
+		"sit":
+			_sit_on(stall)
+		"disturb":
+			_disturb(stall)
+
+
+## Yanking the lid out from under a seated occupant. He minds. A lot.
+func _disturb(stall: Stall) -> void:
+	var was_friendly := stall.outcome == Stall.Outcome.FRIENDLY
+	stall.clear_occupant()
+	stall.open_seat()
+	if was_friendly:
+		_show_message("He was NICE to you. Was.")
 	else:
-		best.knock()
+		_show_message("You lifted HIS seat. He objects. VIOLENTLY.")
+	# Spawn clear of the player so physics can't catapult anyone.
+	var pos := stall.interior_point()
+	if pos.distance_to(player.global_position) < 1.1:
+		pos = stall.to_global(Vector3(0, 0, -1.4))
+	_spawn_enemy(pos)
 
 
-## The toilet as an interaction: sitting is the win on the FREE stall, and a
-## push-your-luck gamble everywhere else.
+## The toilet as a push-your-luck gamble: your body sits down on it while
+## the camera pulls out to watch. Usually relief. Sometimes the bowl bites.
 func _sit_on(stall: Stall) -> void:
 	if player.locked:
 		return
-
-	# Seat interaction is two-step where the lid is still down (stalls that
-	# revealed an occupant don't auto-open it): first E lifts the lid.
-	if not stall.lid_open:
-		stall.open_seat()
-		_show_message("You lift the lid... (E again to sit)")
-		return
-
-	if stall.outcome == Stall.Outcome.FREE:
-		if get_tree().get_nodes_in_group("enemies").size() > 0:
-			_show_message("You can't go with the queue jumpers watching!!")
-			return
-		player.locked = true
-		var tw := create_tween()
-		tw.tween_property(player, "global_position", stall.seat_point(), 0.4) \
-			.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
-		tw.tween_callback(_end_game.bind(true))
-		return
-
 	if stall.seat_used:
 		_show_message("No. Once was enough.")
 		return
 	stall.seat_used = true
 
+	# Face out through the door, glide onto the seat, sit.
+	var out_dir := -stall.global_transform.basis.z
+	player.rotation.y = atan2(out_dir.x, out_dir.z) + PI
 	player.locked = true
-	var tw2 := create_tween()
-	tw2.tween_property(player, "global_position", stall.seat_point(), 0.4) \
+	var tw := create_tween()
+	tw.tween_property(player, "global_position", stall.seat_point(), 0.35) \
 		.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
-	tw2.tween_interval(0.5)
-	tw2.tween_callback(func() -> void:
-		player.locked = false
+	tw.tween_callback(player.sit_down)
+	tw.tween_interval(1.5)
+	tw.tween_callback(func() -> void:
 		if rng.randf() < 0.65:
 			player.urgency = maxf(0.0, player.urgency - 14.0)
-			_show_message("A moment of shameful hover-relief... but not THE one. (urgency down)")
+			_show_message("A moment of shameful relief... (urgency down)")
+			get_tree().create_timer(0.8).timeout.connect(player.stand_up)
 		else:
-			player.urgency = minf(100.0, player.urgency + 8.0)
-			# Hit comes from the bowl: hurled back out through the door.
-			player.take_hit(-stall.global_transform.basis.z)
-			_show_message("SOMETHING IN THE BOWL GRABBED YOU!!")
-			_spawn_crawler(stall.interior_point())
+			_spawn_tentacle(stall)
+			_show_message("SOMETHING IN THE BOWL!!")
+			get_tree().create_timer(0.5).timeout.connect(func() -> void:
+				player.stand_up()
+				player.urgency = minf(100.0, player.urgency + 8.0)
+				# The grab hurls you back out through the door.
+				player.take_hit(out_dir)
+			)
 	)
+
+
+## The tentacle FBX erupting out of the bowl. Pure visual (no collider), so
+## it can't physics-launch anybody - that bug is dead.
+func _spawn_tentacle(stall: Stall) -> void:
+	var wrapper := Node3D.new()
+	add_child(wrapper)
+	_track(wrapper, stall.global_position.z)
+	wrapper.scale = Vector3(0.22, 0.22, 0.22)
+	wrapper.global_position = stall.seat_point() + Vector3(0, -0.05, 0)
+	wrapper.global_rotation.y = stall.global_rotation.y
+
+	var inst: Node3D = TENTACLE_SCENE.instantiate()
+	# The FBX ships with its own Camera3D; that must never become current.
+	for cam in inst.find_children("*", "Camera3D", true, false):
+		cam.queue_free()
+	wrapper.add_child(inst)
+
+	var anims := inst.find_children("*", "AnimationPlayer", true, false)
+	if anims.size() > 0:
+		var ap: AnimationPlayer = anims[0]
+		ap.play(String(ap.get_animation_list()[0]))
+
+	# Play the eruption, then sink back into the bowl.
+	get_tree().create_timer(2.2).timeout.connect(func() -> void:
+		if is_instance_valid(wrapper):
+			var tw := create_tween()
+			tw.tween_property(wrapper, "scale", Vector3(0.02, 0.02, 0.02), 0.35) \
+				.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+			tw.tween_callback(wrapper.queue_free)
+	)
+
+
+## Keep the floating E-prompt glued to the current interact target.
+func _update_prompt() -> void:
+	_prompt_pulse += get_process_delta_time() * 4.0
+	var pulse := 0.75 + 0.25 * sin(_prompt_pulse)
+	var t := _interact_target()
+	if t.is_empty():
+		_prompt.visible = false
+		if _prompt_hud:
+			_prompt_hud.visible = false
+		return
+	_prompt.visible = true
+	_prompt.text = t["label"]
+	_prompt.global_position = t["point"] + Vector3(0, 0.28, 0)
+	_prompt.modulate = Color(0.85, 1.0, 0.55, pulse)
+	if _prompt_hud:
+		_prompt_hud.visible = true
+		_prompt_hud.text = t["label"]
+		_prompt_hud.modulate = Color(0.9, 1.0, 0.65, pulse)
 
 
 func _spawn_stall_pair(z: float) -> void:
@@ -340,26 +529,25 @@ func _spawn_stall_pair(z: float) -> void:
 	# Deeper in, crawlers start skittering down the corridor.
 	if far_enough and stall_count > 20 and rng.randf() < 0.04:
 		_spawn_crawler(Vector3(rng.randf_range(-1.6, 1.6), 0, z))
+	# Wanderers are harmless; they can appear anywhere, even near the player.
+	if pair_count > 2 and rng.randf() < 0.1:
+		_spawn_wanderer(Vector3(rng.randf_range(-1.8, 1.8), 0, z))
 
-	# Janitorial clutter along the corridor edges, sometimes drifting toward
-	# the middle as an actual obstacle to shoulder past.
-	if rng.randf() < 0.18:
+	# Janitorial clutter - never in the first ~10m (props were launching the
+	# player onto the roof at spawn via depenetration).
+	if pair_count > 6 and rng.randf() < 0.18:
 		var def: Dictionary = PROP_DEFS[rng.randi_range(0, PROP_DEFS.size() - 1)]
 		var px: float = [-2.55, 2.55][rng.randi_range(0, 1)]
 		if rng.randf() < 0.3:
 			px = rng.randf_range(-1.4, 1.4)
 		_spawn_prop(def, Vector3(px, 0, z + STALL_SPACING * 0.5), rng.randf_range(0, TAU))
 
-	# Rarely: an entire fallen tree, jammed diagonally through the building
-	# like it grew somewhere else and ended up here. Pure set dressing.
-	if pair_count > 6 and rng.randf() < 0.025:
+	# Rarely: an entire fallen tree, jammed diagonally through the building.
+	if pair_count > 10 and rng.randf() < 0.025:
 		_spawn_fallen_tree(z)
 
 
 func _roll_outcome() -> Stall.Outcome:
-	if stall_count == free_stall_index and not _free_placed:
-		_free_placed = true
-		return Stall.Outcome.FREE
 	var roll := rng.randi_range(0, W_HOSTILE + W_LOOT + W_FRIENDLY + W_EMPTY - 1)
 	if roll < W_HOSTILE:
 		return Stall.Outcome.HOSTILE
@@ -375,10 +563,19 @@ func _roll_outcome() -> Stall.Outcome:
 func _on_stall_opened(stall: Stall, outcome: Stall.Outcome) -> void:
 	match outcome:
 		Stall.Outcome.HOSTILE:
-			_show_message("OCCUPIED!! He's getting up!!")
-			# The sitting man becomes a live, furious enemy.
-			stall.clear_occupant()
-			_spawn_enemy(stall.interior_point())
+			# He stays seated at first, glaring. Linger (or yank his seat)
+			# and he gets up. Walk away fast enough and nothing happens.
+			_show_message("OCCUPIED. He is glaring at you.")
+			get_tree().create_timer(rng.randf_range(2.5, 5.0)).timeout.connect(func() -> void:
+				if is_instance_valid(stall) and stall.has_seated_occupant() \
+						and stall.global_position.distance_to(player.global_position) < 7.0:
+					stall.clear_occupant()
+					_show_message("He's had ENOUGH. He's getting up!!")
+					var pos := stall.interior_point()
+					if pos.distance_to(player.global_position) < 1.1:
+						pos = stall.to_global(Vector3(0, 0, -1.4))
+					_spawn_enemy(pos)
+			)
 		Stall.Outcome.LOOT:
 			if not player.has_plunger and rng.randf() < 0.4:
 				player.give_plunger()
@@ -400,34 +597,25 @@ func _on_stall_opened(stall: Stall, outcome: Stall.Outcome) -> void:
 				_show_message("...it was NOT empty. IT CRAWLS!!")
 				_spawn_crawler(stall.interior_point())
 			else:
-				_show_message("Vacant... but unspeakable. Not this one.")
-		Stall.Outcome.FREE:
-			free_stall = stall
-			_show_message("THE FREE STALL! Clear the queue, then SIT (E)!", 4.0)
-			# Guards burst out of the neighboring corridor, not out of walls.
-			var z := stall.global_position.z
-			for i in 3:
-				_spawn_enemy(Vector3(rng.randf_range(-1.5, 1.5), 0, z + [-3.0, 3.0, -5.5][i]))
-
-
-func _check_win() -> void:
-	# Winning now requires SITTING (E) on the free throne, not just proximity.
-	if not free_stall or not free_stall.is_open:
-		return
-	var dist := player.global_position.distance_to(free_stall.interior_point())
-	if dist > 1.4 or _warn_cooldown > 0.0:
-		return
-	if get_tree().get_nodes_in_group("enemies").size() > 0:
-		_show_message("Deal with the queue jumpers first!")
-	else:
-		_show_message("The throne awaits. SIT. (E)")
-	_warn_cooldown = 2.0
+				_show_message("Vacant... but unspeakable. Sit if you dare.")
 
 
 func _spawn_enemy(pos: Vector3) -> void:
 	var e: ProtoEnemy = ENEMY_SCENE.instantiate()
+	# Set local position BEFORE add_child - setting global_position on a
+	# brand-new CharacterBody3D in the same _ready as the player was
+	# clobbering the player's transform (both ended up on one tile).
+	e.position = pos + Vector3(0, 0.1, 0)
 	add_child(e)
-	e.global_position = pos + Vector3(0, 0.1, 0)
+
+
+## A Wanderer: same guy, zero malice. He's just also stuck in here, pacing
+## the corridor like you. Hitting him changes his mind about the "zero malice".
+func _spawn_wanderer(pos: Vector3) -> void:
+	var e: ProtoEnemy = ENEMY_SCENE.instantiate()
+	e.neutral = true
+	e.position = pos + Vector3(0, 0.1, 0)
+	add_child(e)
 
 
 func _spawn_crawler(pos: Vector3) -> void:
@@ -457,10 +645,6 @@ func _prune_behind() -> void:
 			continue
 		if entry["z"] > cutoff:
 			if node is Stall:
-				# The prize must survive even if the player backtracks late.
-				if node.outcome == Stall.Outcome.FREE:
-					kept.append(entry)
-					continue
 				stalls.erase(node)
 			node.queue_free()
 		else:
@@ -530,6 +714,7 @@ func _spawn_prop(def: Dictionary, pos: Vector3, yaw: float) -> void:
 	if def.has("col_size"):
 		var body := StaticBody3D.new()
 		add_child(body)
+		_track(body, pos.z)
 		body.position = pos
 		body.rotation.y = yaw
 		var col := CollisionShape3D.new()
@@ -705,7 +890,7 @@ func _end_game(won: bool) -> void:
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	_overlay.visible = true
 	if won:
-		_overlay_label.text = "RELIEF AT LAST.\n\nYou found the one free stall.\n\nPress R to queue again"
+		_overlay_label.text = "RELIEF AT LAST.\n\nPress R to queue again"
 	else:
 		_overlay_label.text = "You didn't make it.\n\nWe don't talk about what happened.\n\nPress R to try again"
 
@@ -812,6 +997,20 @@ func _build_hud() -> void:
 	cross.modulate = Color(1, 1, 1, 0.7)
 	hud.add_child(cross)
 
+	# Crisp on-screen interaction prompt (above the crosshair). Always readable
+	# even when the 3D Label3D gets lost in the pixel shader / fog.
+	_prompt_hud = Label.new()
+	_prompt_hud.set_anchors_preset(Control.PRESET_CENTER)
+	_prompt_hud.offset_top = 36
+	_prompt_hud.offset_bottom = 72
+	_prompt_hud.offset_left = -220
+	_prompt_hud.offset_right = 220
+	_prompt_hud.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_prompt_hud.add_theme_font_size_override("font_size", 28)
+	_prompt_hud.modulate = Color(0.9, 1.0, 0.65)
+	_prompt_hud.visible = false
+	hud.add_child(_prompt_hud)
+
 	_msg = Label.new()
 	_msg.set_anchors_preset(Control.PRESET_TOP_WIDE)
 	_msg.offset_top = 64
@@ -824,7 +1023,7 @@ func _build_hud() -> void:
 	hint.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
 	hint.offset_top = -44
 	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	hint.text = "WASD move  ·  mouse look  ·  LMB / Space swing  ·  E knock / sit  ·  1-4 items"
+	hint.text = "WASD  ·  look  ·  LMB swing  ·  E interact  ·  1-4 items"
 	hint.add_theme_font_size_override("font_size", 16)
 	hint.modulate = Color(1, 1, 1, 0.55)
 	hud.add_child(hint)
