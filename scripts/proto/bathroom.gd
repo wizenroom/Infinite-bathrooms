@@ -273,9 +273,13 @@ func _spawn_starting_wanderers() -> void:
 					player.rotation.y = atan2(-dir.x, -dir.z)
 					break
 		)
+		get_tree().create_timer(2.4).timeout.connect(func() -> void:
+			_show_message("He's getting up. He knows what you did.")
+		)
 		get_tree().create_timer(2.8).timeout.connect(func() -> void:
 			print("TENT-TEST urgency=", player.urgency)
-			get_viewport().get_texture().get_image().save_png("res://tent_check.png")
+			# Root window = retro viewport + HUD overlay together.
+			get_tree().root.get_texture().get_image().save_png("res://tent_check.png")
 			get_tree().quit()
 		)
 	if dbg == "tent2":
@@ -1027,9 +1031,10 @@ func _place_tile(scene: PackedScene, pos: Vector3, roll := 0.0) -> void:
 
 
 func _build_hud() -> void:
-	# The pixel font becomes the engine-wide fallback, so every Label,
-	# ProgressBar and future control picks it up without per-node overrides.
-	ThemeDB.fallback_font = load("res://assets/pixel_font.ttf")
+	# PixelI for the readouts (urgency, messages, inventory, overlays);
+	# the E-prompts use the chunkier PixelGame font, set where they're built.
+	# Explicit per-label overrides - the built-in theme beats any fallback.
+	var ui_font: Font = load("res://assets/pixel_font.ttf")
 
 	var hud := CanvasLayer.new()
 	var host: Node = hud_parent if hud_parent else self
@@ -1046,6 +1051,7 @@ func _build_hud() -> void:
 	var bar_label := Label.new()
 	bar_label.text = "  URGENCY"
 	bar_label.position = Vector2(20, 22)
+	bar_label.add_theme_font_override("font", ui_font)
 	hud.add_child(bar_label)
 
 	# Crosshair dot.
@@ -1077,6 +1083,7 @@ func _build_hud() -> void:
 	_msg.set_anchors_preset(Control.PRESET_TOP_WIDE)
 	_msg.offset_top = 64
 	_msg.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_msg.add_theme_font_override("font", ui_font)
 	_msg.add_theme_font_size_override("font_size", 26)
 	_msg.modulate.a = 0.0
 	hud.add_child(_msg)
@@ -1108,6 +1115,7 @@ func _build_hud() -> void:
 		var num := Label.new()
 		num.text = str(i + 1)
 		num.position = Vector2(10, 4)
+		num.add_theme_font_override("font", ui_font)
 		num.add_theme_font_size_override("font_size", 13)
 		num.modulate = Color(1, 1, 1, 0.6)
 		frame.add_child(num)
@@ -1116,6 +1124,7 @@ func _build_hud() -> void:
 		lab.set_anchors_preset(Control.PRESET_FULL_RECT)
 		lab.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		lab.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		lab.add_theme_font_override("font", ui_font)
 		lab.add_theme_font_size_override("font_size", 12)
 		lab.modulate = Color(0.75, 1.0, 0.75)
 		frame.add_child(lab)
@@ -1133,6 +1142,7 @@ func _build_hud() -> void:
 	_overlay_label.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_overlay_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_overlay_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_overlay_label.add_theme_font_override("font", ui_font)
 	_overlay_label.add_theme_font_size_override("font_size", 40)
 	_overlay.add_child(_overlay_label)
 
