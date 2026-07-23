@@ -129,7 +129,8 @@ func _ready() -> void:
 	# crisp HUD copy so the prompt is never missable through the pixel mess.
 	_prompt = Label3D.new()
 	_prompt.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-	_prompt.font = load("res://assets/pixel_font.ttf")
+	# Interaction hints get their own chunkier pixel-game font.
+	_prompt.font = load("res://assets/pixel_game_font.otf")
 	_prompt.font_size = 96
 	_prompt.outline_size = 22
 	_prompt.modulate = Color(0.85, 1.0, 0.55)
@@ -1066,6 +1067,7 @@ func _build_hud() -> void:
 	_prompt_hud.offset_left = -220
 	_prompt_hud.offset_right = 220
 	_prompt_hud.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_prompt_hud.add_theme_font_override("font", load("res://assets/pixel_game_font.otf"))
 	_prompt_hud.add_theme_font_size_override("font_size", 28)
 	_prompt_hud.modulate = Color(0.9, 1.0, 0.65)
 	_prompt_hud.visible = false
