@@ -18,7 +18,7 @@ const NPC_NAMES := [
 	"OTIS", "REG", "WALT", "HUGO", "SEYMOUR", "TERRENCE", "KEV", "BART",
 	"WIZEN", "SEAN", "ERIC", "ELON MUSK", "BILL GATES", "HAMILTON", "HAMLET",
 	"DOOMSLAYER", "JOHN", "KEVIN", "JACK", "WALTER WHITE", "KENNEDY", "ETHAN",
-	"NICK", "SANTA", "TYGO", "JOHN LENNON", "MARK BROWN", "IVAN", "OWEN", 
+	"NICK", "SANTA", "TYGO", "JOHN LENNON", "MARK BROWN", "IVAN", "OWEN", "LARRY",
 ]
 
 ## Yelled at random while chasing the player.
@@ -127,6 +127,7 @@ var _wander_target := Vector3.ZERO
 var _wander_timer := 0.0
 var _idle_timer := 0.0
 var _flee_target := Vector3.ZERO
+var _flee_stall: Node3D = null
 var _visual: Node3D
 var _anim: AnimationPlayer
 var _meshes: Array = []
@@ -287,11 +288,13 @@ func chat() -> void:
 
 
 ## Rush is coming: drop EVERYTHING and sprint for a stall. Even hostiles
-## value their life over their grudge.
-func rush_panic(spot: Vector3) -> void:
+## value their life over their grudge. `stall` (a Stall, if one was found)
+## lets him shoulder the door open when he gets there.
+func rush_panic(spot: Vector3, stall: Node3D = null) -> void:
 	if _state == "dead":
 		return
 	_flee_target = spot
+	_flee_stall = stall
 	_state = "flee"
 	if randf() < 0.7:
 		say(RUSH_PANIC_LINES[randi_range(0, RUSH_PANIC_LINES.size() - 1)], 1.8)
@@ -352,6 +355,9 @@ func _physics_process(delta: float) -> void:
 			# than usual - the alternative is death.
 			var to_f := _flee_target - global_position
 			to_f.y = 0
+			# Close enough to the door: shoulder it open on the way in.
+			if _flee_stall != null and to_f.length() < 1.6 and not _flee_stall.is_open:
+				_flee_stall.force_open()
 			if to_f.length() < 0.45:
 				_state = "hide"
 				velocity.x = _knockback.x

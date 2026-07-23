@@ -91,15 +91,19 @@ var rng := RandomNumberGenerator.new()
 const RUSH_TEX := preload("res://assets/rush.jpg")
 const RUSH_FLICKER_TIME := 5.0
 const RUSH_DARK_TIME := 4.0
+## After he's gone the lights STAY dead a while longer. Nobody trusts it.
+const RUSH_AFTERMATH_TIME := 6.0
 const RUSH_KILL_RADIUS := 1.8
 
-var _rush_state := ""  # "" / "flicker" / "dark"
+var _rush_state := ""  # "" / "flicker" / "dark" / "aftermath"
 var _rush_timer := 0.0
 var _next_rush := 0.0
 var _rush_node: Node3D = null
 var _rush_speed := 0.0
+var _rush_prev_z := 0.0
 var _rush_wobble := 0.0
 var _pending_death_text := ""
+var _env: Environment = null
 
 var _bar: ProgressBar
 var _msg: Label
@@ -386,9 +390,14 @@ func _spawn_starting_wanderers() -> void:
 			get_tree().root.get_texture().get_image().save_png("res://rush2.png")
 		)
 		get_tree().create_timer(11.0).timeout.connect(func() -> void:
+			var open_count := 0
+			for s in stalls:
+				if s.is_open:
+					open_count += 1
 			print("RUSH-TEST over: game_ended=", game_ended,
 				" overlay=", _overlay_label.text.replace("\n", " / "),
-				" enemies_left=", get_tree().get_nodes_in_group("enemies").size())
+				" enemies_left=", get_tree().get_nodes_in_group("enemies").size(),
+				" open_stalls=", open_count)
 			get_tree().root.get_texture().get_image().save_png("res://rush3.png")
 			get_tree().quit()
 		)
@@ -416,9 +425,14 @@ func _spawn_starting_wanderers() -> void:
 					" in_stall=", _player_in_stall(), " npcs_near=", near,
 					" ended=", game_ended)
 			)
-		get_tree().create_timer(11.2).timeout.connect(func() -> void:
+		get_tree().create_timer(12.0).timeout.connect(func() -> void:
+			print("RUSHSAFE-TEST aftermath: state='", _rush_state, "' ambient=", _env.ambient_light_energy)
+			get_tree().root.get_texture().get_image().save_png("res://rush_dark.png")
+		)
+		get_tree().create_timer(17.4).timeout.connect(func() -> void:
 			print("RUSHSAFE-TEST game_ended=", game_ended, " rush_state='", _rush_state,
-				"' lights_back=", not get_tree().get_nodes_in_group("flicker_lights")[0].blackout)
+				"' lights_back=", not get_tree().get_nodes_in_group("flicker_lights")[0].blackout,
+				" ambient=", _env.ambient_light_energy)
 			get_tree().quit()
 		)
 	if dbg == "wanderer":
@@ -744,6 +758,10 @@ func _tick_rush(delta: float) -> void:
 			_rush_timer -= delta
 			_move_rush(delta)
 			if _rush_timer <= 0.0:
+				_rush_aftermath()
+		"aftermath":
+			_rush_timer -= delta
+			if _rush_timer <= 0.0:
 				_end_rush()
 
 
@@ -758,34 +776,48 @@ func _start_rush() -> void:
 	# the one that was mid-swing at your face. Especially that one.
 	for e in get_tree().get_nodes_in_group("enemies"):
 		if e is ProtoEnemy:
-			var spot := _nearest_hiding_spot(e.global_position)
-			(e as ProtoEnemy).rush_panic(spot)
+			var s := _nearest_hiding_stall(e.global_position)
+			if s != null:
+				(e as ProtoEnemy).rush_panic(s.interior_point(), s)
+			else:
+				# Nothing reachable: cower at the nearest door and pray.
+				(e as ProtoEnemy).rush_panic(e.global_position)
 
 
-## Nearest usable stall interior for a panicking NPC. Open and unoccupied
-## preferred; if there's nothing, the nearest door to die in front of.
-func _nearest_hiding_spot(from: Vector3) -> Vector3:
-	var best_spot := from
+## Nearest stall a panicking NPC can actually get into: already open, or
+## closed but unclaimed (he'll shoulder the door open himself). Stalls with
+## someone on the throne are "locked".
+func _nearest_hiding_stall(from: Vector3) -> Stall:
+	var best: Stall = null
 	var best_d := INF
-	var fallback := from
-	var fallback_d := INF
 	for s in stalls:
+		if s.has_seated_occupant():
+			continue
+		if not s.is_open and (s.outcome == Stall.Outcome.HOSTILE or s.outcome == Stall.Outcome.FRIENDLY):
+			continue  # claimed: the door won't give
 		var d := s.global_position.distance_to(from)
-		if d < fallback_d:
-			fallback_d = d
-			fallback = s.to_global(Vector3(0, 0, -0.6))
-		if s.is_open and not s.has_seated_occupant() and d < best_d:
+		if d < best_d:
 			best_d = d
-			best_spot = s.interior_point()
-	return best_spot if best_d < INF else fallback
+			best = s
+	return best
+
+
+## Total darkness: tubes dead, sign glows dead, ambient choked to nothing.
+func _set_deep_dark(on: bool) -> void:
+	for l in get_tree().get_nodes_in_group("flicker_lights"):
+		l.panic = false
+		l.blackout = on
+	for l in get_tree().get_nodes_in_group("sign_lights"):
+		l.visible = not on
+	if _env:
+		_env.ambient_light_energy = 0.015 if on else 0.35
+		_env.fog_light_color = Color(0, 0, 0) if on else Color(0.03, 0.045, 0.05)
 
 
 func _rush_go_dark() -> void:
 	_rush_state = "dark"
 	_rush_timer = RUSH_DARK_TIME
-	for l in get_tree().get_nodes_in_group("flicker_lights"):
-		l.panic = false
-		l.blackout = true
+	_set_deep_dark(true)
 	_show_message("")
 
 	# The entity itself: the painted face, glowing in the dark, coming from
@@ -815,49 +847,68 @@ func _rush_go_dark() -> void:
 	var end_z := player.global_position.z + 24.0
 	_rush_speed = (end_z - start_z) / RUSH_DARK_TIME
 	_rush_node.position = Vector3(0, 1.45, start_z)
+	_rush_prev_z = start_z
 
 
 func _move_rush(delta: float) -> void:
 	if _rush_node == null:
 		return
 	_rush_wobble += delta * 9.0
+	_rush_prev_z = _rush_node.position.z
 	_rush_node.position.z += _rush_speed * delta
 	_rush_node.position.x = sin(_rush_wobble) * 0.9
 	_rush_node.position.y = 1.45 + sin(_rush_wobble * 1.7) * 0.35
 
-	var rz := _rush_node.position.z
+	# He moves ~20m per second; a point check would tunnel straight past
+	# people between frames. Kill everything the SWEPT band covered.
+	var lo := minf(_rush_prev_z, _rush_node.position.z) - RUSH_KILL_RADIUS
+	var hi := maxf(_rush_prev_z, _rush_node.position.z) + RUSH_KILL_RADIUS
+
 	# The player: caught in the open when he passes = dead. No wounds, no
 	# knockback, no negotiation.
-	if absf(rz - player.global_position.z) < RUSH_KILL_RADIUS and not _player_in_stall():
+	var pz := player.global_position.z
+	if pz > lo and pz < hi and not _player_in_stall():
 		_pending_death_text = "RUSH.\n\nYou were not in a stall."
 		player.die_instantly()
 		return
-	# NPCs still scrambling in the corridor get the same treatment.
+	# NPCs still scrambling in the corridor get the same treatment. Anyone
+	# already physically inside a stall footprint is spared, "hidden" or not.
 	for e in get_tree().get_nodes_in_group("enemies"):
 		if e is ProtoEnemy and not (e as ProtoEnemy).is_hidden() \
-				and absf(e.global_position.z - rz) < RUSH_KILL_RADIUS \
-				and absf(e.global_position.y) < 2.0:
+				and e.global_position.z > lo and e.global_position.z < hi \
+				and absf(e.global_position.y) < 2.0 \
+				and not _point_in_stall(e.global_position):
 			(e as ProtoEnemy).rush_die()
+
+
+## He's gone - but the dark stays. Long enough to doubt it.
+func _rush_aftermath() -> void:
+	_rush_state = "aftermath"
+	_rush_timer = RUSH_AFTERMATH_TIME
+	if _rush_node:
+		_rush_node.queue_free()
+		_rush_node = null
+	_show_message("...")
 
 
 func _end_rush() -> void:
 	_rush_state = ""
 	_next_rush = rng.randf_range(40.0, 70.0)
-	for l in get_tree().get_nodes_in_group("flicker_lights"):
-		l.blackout = false
-	if _rush_node:
-		_rush_node.queue_free()
-		_rush_node = null
+	_set_deep_dark(false)
 	for e in get_tree().get_nodes_in_group("enemies"):
 		if e is ProtoEnemy:
 			(e as ProtoEnemy).rush_over()
-	_show_message("...it's gone. For now.")
+	_show_message("The lights hum back on. It's gone. For now.")
 
 
 ## Physically inside any stall's footprint (door open or closed) = safe.
 func _player_in_stall() -> bool:
+	return _point_in_stall(player.global_position)
+
+
+func _point_in_stall(p: Vector3) -> bool:
 	for s in stalls:
-		var lp: Vector3 = s.to_local(player.global_position)
+		var lp: Vector3 = s.to_local(p)
 		if absf(lp.x) < 0.9 and lp.z > 0.0 and lp.z < Stall.STALL_DEPTH + 0.15:
 			return true
 	return false
@@ -1426,6 +1477,7 @@ func _build_environment() -> void:
 	var world_env := WorldEnvironment.new()
 	world_env.environment = env
 	add_child(world_env)
+	_env = env  # Rush blackouts choke the ambient down to nothing.
 
 	# One long box world; floor/ceiling are collision-only, the tile models
 	# provide the visuals. Walls sit flush against the stall backs.

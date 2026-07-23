@@ -82,6 +82,8 @@ func setup(p_outcome: Outcome, _rng: RandomNumberGenerator) -> void:
 	sign_wrap.add_child(sign_inst)
 
 	var ind := OmniLight3D.new()
+	# Doused during Rush blackouts along with everything else.
+	ind.add_to_group("sign_lights")
 	ind.light_color = Color(0.9, 0.15, 0.1) if claims_occupied else Color(0.15, 0.9, 0.3)
 	ind.light_energy = 0.5
 	ind.omni_range = 1.2
@@ -114,6 +116,23 @@ func knock() -> void:
 		_open_lid()
 
 	opened.emit(self, outcome)
+
+
+## A panicking NPC shoulders the door open: no reveal ceremony, no outcome,
+## no message - the stall is simply open now. Claimed stalls stay shut
+## (there's already someone on the throne behind that door).
+func force_open() -> bool:
+	if is_open:
+		return true
+	if _has_occupant():
+		return false
+	is_open = true
+	resolved = true  # whatever surprise it held got trampled in the panic
+	if _door_collider:
+		_door_collider.queue_free()
+		_door_collider = null
+	_mount_model(true)
+	return true
 
 
 ## Push an open door shut again (only when nobody is on the throne).
