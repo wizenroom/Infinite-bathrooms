@@ -9,6 +9,8 @@ extends CharacterBody3D
 ## out of aggro range, so nobody stands around like a mannequin anymore.
 
 const MAN_SCENE := preload("res://assets/man_animated.glb")
+## Wanderers get the newer skinned man export (same clip names, lighter mesh).
+const WANDERER_SCENE := preload("res://assets/wanderer.glb")
 
 const SPEED := 3.7
 const WANDER_SPEED := 1.4
@@ -51,7 +53,7 @@ func _ready() -> void:
 	_visual = Node3D.new()
 	add_child(_visual)
 
-	var model := MAN_SCENE.instantiate()
+	var model: Node3D = (WANDERER_SCENE if neutral else MAN_SCENE).instantiate()
 	# glTF forward is +Z, Godot forward is -Z; flip so he runs face-first.
 	model.rotation.y = PI
 	_visual.add_child(model)
@@ -65,6 +67,7 @@ func _ready() -> void:
 	var anims := model.find_children("*", "AnimationPlayer", true, false)
 	if anims.size() > 0:
 		_anim = anims[0]
+		_trim_dead_tails(_anim)
 		for anim_name in ["Walk", "Run", "Sit"]:
 			if _anim.has_animation(anim_name):
 				_anim.get_animation(anim_name).loop_mode = Animation.LOOP_LINEAR
@@ -74,6 +77,33 @@ func _ready() -> void:
 		# the first physics tick instead.
 		_state = "idle"
 		_idle_timer = randf_range(0.2, 1.5)
+
+
+## The baked exports carry dead "empty frames" at the end of some clips
+## (keys exist but nothing moves). Cut each clip at its last key that
+## actually changes value so loops and holds don't sit through the padding.
+static func _trim_dead_tails(ap: AnimationPlayer) -> void:
+	for n in ap.get_animation_list():
+		var a: Animation = ap.get_animation(n)
+		var last_change := 0.0
+		for t in a.get_track_count():
+			var kc := a.track_get_key_count(t)
+			for k in range(kc - 1, 0, -1):
+				var cur: Variant = a.track_get_key_value(t, k)
+				var prev: Variant = a.track_get_key_value(t, k - 1)
+				var changed := false
+				match a.track_get_type(t):
+					Animation.TYPE_POSITION_3D:
+						changed = (cur as Vector3).distance_to(prev) > 0.0005
+					Animation.TYPE_ROTATION_3D:
+						changed = (cur as Quaternion).angle_to(prev) > 0.004
+					_:
+						changed = cur != prev
+				if changed:
+					last_change = maxf(last_change, a.track_get_key_time(t, k))
+					break
+		if last_change > 0.05 and last_change < a.length - 0.01:
+			a.length = last_change
 
 
 func _pick_wander_target() -> void:

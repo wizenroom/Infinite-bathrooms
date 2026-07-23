@@ -129,6 +129,7 @@ func _ready() -> void:
 	# crisp HUD copy so the prompt is never missable through the pixel mess.
 	_prompt = Label3D.new()
 	_prompt.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	_prompt.font = load("res://assets/pixel_font.ttf")
 	_prompt.font_size = 96
 	_prompt.outline_size = 22
 	_prompt.modulate = Color(0.85, 1.0, 0.55)
@@ -270,6 +271,39 @@ func _spawn_starting_wanderers() -> void:
 					var dir := s.global_position + Vector3(0, 0.8, 0) - player.global_position
 					player.rotation.y = atan2(-dir.x, -dir.z)
 					break
+		)
+		get_tree().create_timer(2.8).timeout.connect(func() -> void:
+			print("TENT-TEST urgency=", player.urgency)
+			get_viewport().get_texture().get_image().save_png("res://tent_check.png")
+			get_tree().quit()
+		)
+	if dbg == "tent2":
+		# Second beat: mid-flail, urgency ticking.
+		get_tree().create_timer(1.5).timeout.connect(func() -> void:
+			for s in stalls:
+				if not s.is_open and s.global_position.z < -5.0 and s.global_position.z > -12.0:
+					s.knock()
+					_spawn_tentacle(s)
+					player.global_position = s.to_global(Vector3(0, 0.1, -1.2))
+					var dir := s.global_position + Vector3(0, 1.2, 0) - player.global_position
+					player.rotation.y = atan2(-dir.x, -dir.z)
+					break
+		)
+		get_tree().create_timer(3.4).timeout.connect(func() -> void:
+			print("TENT2-TEST urgency=", player.urgency)
+			get_viewport().get_texture().get_image().save_png("res://tent2_check.png")
+			get_tree().quit()
+		)
+	if dbg == "wanderer":
+		# Stand in front of a fresh wanderer and screenshot the new model.
+		get_tree().create_timer(1.5).timeout.connect(func() -> void:
+			_spawn_wanderer(Vector3(0.5, 0, -6.0))
+			player.global_position = Vector3(0.5, 0.1, -3.5)
+			player.rotation.y = 0.0
+		)
+		get_tree().create_timer(3.5).timeout.connect(func() -> void:
+			get_viewport().get_texture().get_image().save_png("res://wanderer_check.png")
+			get_tree().quit()
 		)
 	if dbg == "top":
 		get_tree().create_timer(1.0).timeout.connect(func() -> void:
@@ -448,13 +482,13 @@ func _sit_on(stall: Stall) -> void:
 	)
 
 
-## The tentacle FBX erupting out of the bowl. Pure visual (no collider), so
-## it can't physics-launch anybody - that bug is dead.
+## The tentacle FBX erupting out of the bowl - upright, animated, purple, and
+## it squeezes your bladder: urgency ticks up while you stand next to it.
+## Still no collider, so it can't physics-launch anybody - that bug is dead.
 func _spawn_tentacle(stall: Stall) -> void:
 	var wrapper := Node3D.new()
 	add_child(wrapper)
 	_track(wrapper, stall.global_position.z)
-	wrapper.scale = Vector3(0.22, 0.22, 0.22)
 	wrapper.global_position = stall.seat_point() + Vector3(0, -0.05, 0)
 	wrapper.global_rotation.y = stall.global_rotation.y
 
@@ -462,12 +496,34 @@ func _spawn_tentacle(stall: Stall) -> void:
 	# The FBX ships with its own Camera3D; that must never become current.
 	for cam in inst.find_children("*", "Camera3D", true, false):
 		cam.queue_free()
+	# The FBX lies flat along Z; stand it up so it GROWS out of the bowl.
+	inst.rotation.x = -PI / 2.0
 	wrapper.add_child(inst)
+
+	# Purple retro skin: same chunky nearest-filtered noise the trees use.
+	for mi in inst.find_children("*", "MeshInstance3D", true, false):
+		mi.material_override = _tree_retro_material(Color(0.58, 0.2, 0.75))
 
 	var anims := inst.find_children("*", "AnimationPlayer", true, false)
 	if anims.size() > 0:
 		var ap: AnimationPlayer = anims[0]
 		ap.play(String(ap.get_animation_list()[0]))
+
+	# Erupt: swell up from the bowl instead of popping in at full size.
+	wrapper.scale = Vector3(0.05, 0.05, 0.05)
+	var grow := create_tween()
+	grow.tween_property(wrapper, "scale", Vector3(0.55, 0.55, 0.55), 0.3) \
+		.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+
+	# Urgency damage: being near the flailing thing is bad for your bladder.
+	var dmg := Timer.new()
+	dmg.wait_time = 0.4
+	dmg.autostart = true
+	wrapper.add_child(dmg)
+	dmg.timeout.connect(func() -> void:
+		if wrapper.global_position.distance_to(player.global_position) < 2.3:
+			player.urgency = minf(100.0, player.urgency + 2.5)
+	)
 
 	# Play the eruption, then sink back into the bowl.
 	get_tree().create_timer(2.2).timeout.connect(func() -> void:
@@ -970,6 +1026,10 @@ func _place_tile(scene: PackedScene, pos: Vector3, roll := 0.0) -> void:
 
 
 func _build_hud() -> void:
+	# The pixel font becomes the engine-wide fallback, so every Label,
+	# ProgressBar and future control picks it up without per-node overrides.
+	ThemeDB.fallback_font = load("res://assets/pixel_font.ttf")
+
 	var hud := CanvasLayer.new()
 	var host: Node = hud_parent if hud_parent else self
 	host.add_child.call_deferred(hud)
@@ -1018,15 +1078,6 @@ func _build_hud() -> void:
 	_msg.add_theme_font_size_override("font_size", 26)
 	_msg.modulate.a = 0.0
 	hud.add_child(_msg)
-
-	var hint := Label.new()
-	hint.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
-	hint.offset_top = -44
-	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	hint.text = "WASD  ·  look  ·  LMB swing  ·  E interact  ·  1-4 items"
-	hint.add_theme_font_size_override("font_size", 16)
-	hint.modulate = Color(1, 1, 1, 0.55)
-	hud.add_child(hint)
 
 	# Inventory: four painted slot frames, nearest-filtered so the scaled-down
 	# brush strokes go chunky instead of blurry (matches the retro filter).
