@@ -172,6 +172,16 @@ func _physics_process(delta: float) -> void:
 
 	move_and_slide()
 
+	# Shove physics props (janitor cart, brooms): CharacterBody3D doesn't
+	# push RigidBody3Ds on its own, so hand over a little momentum per hit.
+	# Capped so light stuff (a broom) topples instead of launching to orbit.
+	for i in get_slide_collision_count():
+		var c := get_slide_collision(i)
+		var rb := c.get_collider() as RigidBody3D
+		if rb:
+			rb.apply_impulse(-c.get_normal() * minf(rb.mass, 6.0) * 0.12,
+				c.get_position() - rb.global_position)
+
 	# Roof-spawn killer. During grace, snap to the floor every frame no
 	# matter what depenetration did. After that, still never allow y > 1.5
 	# (stall tops / ceiling) - nothing walkable lives up there.

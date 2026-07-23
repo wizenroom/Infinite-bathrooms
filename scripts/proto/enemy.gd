@@ -11,6 +11,85 @@ extends CharacterBody3D
 const MAN_SCENE := preload("res://assets/man_animated.glb")
 ## Wanderers get the newer skinned man export (same clip names, lighter mesh).
 const WANDERER_SCENE := preload("res://assets/wanderer.glb")
+const SPEECH_FONT := preload("res://assets/pixel_font.ttf")
+
+const NPC_NAMES := [
+	"GARY", "DALE", "PHIL", "MARV", "EUGENE", "CLIFF", "BORIS", "STAN",
+	"OTIS", "REG", "WALT", "HUGO", "SEYMOUR", "TERRENCE", "KEV", "BART",
+]
+
+## Yelled at random while chasing the player.
+const CHASE_LINES := [
+	"GET OUT OF MY BATHROOM!",
+	"YOU KNOCKED. I ANSWERED!",
+	"THAT WAS MY STALL!",
+	"COME HERE!",
+	"I JUST WANTED PRIVACY!",
+	"YOU LIFTED THE SEAT. THE SEAT!",
+	"THERE'S NO PAPER ANYWHERE ANYWAY!",
+	"I WASN'T DONE!",
+]
+
+## RMB'd a hostile mid-rampage. Bold move.
+const HOSTILE_CHAT_LINES := [
+	"TALK? NOW?!",
+	"WE ARE PAST WORDS.",
+	"RUN.",
+	"APOLOGIZE TO THE SEAT.",
+	"NO.",
+]
+
+## First time you talk to a wanderer he introduces himself.
+const INTRO_LINES := [
+	"I'm %s. Been in here... days? Weeks?",
+	"Name's %s. Don't ask how I got here.",
+	"%s. Former janitor. Currently... resident.",
+	"They call me %s. The stalls know me.",
+]
+
+## General wanderer small talk.
+const LORE_LINES := [
+	"The stalls change when you're not looking.",
+	"Don't trust the vacant signs.",
+	"I heard something UNDER the floor.",
+	"The janitor never came back for his cart.",
+	"The exit's gone. I checked. Twice.",
+	"I saw a tentacle once. I don't sit anymore.",
+	"The lights hum a song. Listen.",
+	"Some of these doors weren't here yesterday.",
+]
+
+const ADVICE_LINES := [
+	"Knock first. ALWAYS knock.",
+	"If the bowl gurgles, run.",
+	"Save it for a clean one. Trust me.",
+	"Don't lift a stranger's seat. Ever.",
+	"The plunger is mightier than the fist.",
+]
+
+## When the player is visibly about to burst.
+const URGENT_LINES := [
+	"You look like you REALLY need to go.",
+	"Dude. Just pick a stall.",
+	"You're doing the dance. I know the dance.",
+	"Hey, hey. Breathe. Clench.",
+]
+
+## A neutral guy who just got hit with a plunger.
+const PROVOKED_LINES := [
+	"THAT'S IT!",
+	"I TRUSTED YOU!",
+	"WRONG GUY. WRONG DAY.",
+	"MY LAST NERVE!",
+]
+
+## Talked to again too soon.
+const BORED_LINES := [
+	"Enough small talk.",
+	"I said what I said.",
+	"Shouldn't you be finding a toilet?",
+	"...",
+]
 
 const SPEED := 3.7
 const WANDER_SPEED := 1.4
@@ -23,6 +102,7 @@ const ATTACK_ANIM_TIME := WINDUP_TIME + STRIKE_TIME
 var hp := 3
 ## Wanderers: no aggro until provoked (hit once).
 var neutral := false
+var npc_name := ""
 
 var _state := "chase"
 var _timer := 0.0
@@ -37,6 +117,12 @@ var _anim: AnimationPlayer
 var _meshes: Array = []
 var _flash_mat: StandardMaterial3D
 var _player: Node3D
+var _speech: Label3D
+var _speech_token := 0
+var _taunt_timer := 0.0
+var _chat_cooldown := 0.0
+var _chat_face := 0.0
+var _said_intro := false
 
 
 func _ready() -> void:
@@ -72,6 +158,36 @@ func _ready() -> void:
 			if _anim.has_animation(anim_name):
 				_anim.get_animation(anim_name).loop_mode = Animation.LOOP_LINEAR
 
+	# Everybody in here has a name. It makes hitting them feel worse.
+	npc_name = NPC_NAMES[randi_range(0, NPC_NAMES.size() - 1)]
+	var tag := Label3D.new()
+	tag.text = npc_name
+	tag.font = SPEECH_FONT
+	tag.font_size = 40
+	tag.outline_size = 10
+	tag.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	tag.position = Vector3(0, 2.02, 0)
+	tag.modulate = Color(0.8, 0.85, 0.8, 0.85)
+	tag.visibility_range_end = 8.0
+	add_child(tag)
+
+	# Speech bubble: 3D text floating over the head, wrapped, short-lived.
+	_speech = Label3D.new()
+	_speech.font = SPEECH_FONT
+	_speech.font_size = 30
+	_speech.outline_size = 8
+	_speech.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	_speech.position = Vector3(0, 2.28, 0)
+	# Anchored at the bottom so long wrapped lines grow UP, away from the
+	# name tag under them.
+	_speech.vertical_alignment = VERTICAL_ALIGNMENT_BOTTOM
+	_speech.width = 320.0
+	_speech.autowrap_mode = TextServer.AUTOWRAP_WORD
+	_speech.modulate = Color(1.0, 0.98, 0.85)
+	_speech.visibility_range_end = 16.0
+	_speech.visible = false
+	add_child(_speech)
+
 	if neutral:
 		# Position isn't final until the manager places us; pick a target on
 		# the first physics tick instead.
@@ -106,6 +222,55 @@ static func _trim_dead_tails(ap: AnimationPlayer) -> void:
 			a.length = last_change
 
 
+## 3D speech: the words live above his head in the scene, not on your HUD.
+func say(text: String, dur := 2.6) -> void:
+	if _state == "dead":
+		return
+	_speech_token += 1
+	var token := _speech_token
+	_speech.text = text
+	_speech.visible = true
+	get_tree().create_timer(dur).timeout.connect(func() -> void:
+		if is_instance_valid(self) and _speech_token == token:
+			_speech.visible = false
+	)
+
+
+## RMB chat. Wanderers stop and talk (diverse pools, context-aware).
+## Hostiles... also respond, in their way - and might hesitate mid-chase.
+func chat() -> void:
+	if _state == "dead":
+		return
+	if not neutral:
+		say(HOSTILE_CHAT_LINES[randi_range(0, HOSTILE_CHAT_LINES.size() - 1)], 1.8)
+		# Talking to a rampage sometimes buys you half a second of confusion.
+		if _state == "chase" and randf() < 0.3:
+			_state = "recover"
+			_timer = 0.7
+		return
+	if _chat_cooldown > 0.0:
+		say(BORED_LINES[randi_range(0, BORED_LINES.size() - 1)], 1.6)
+		return
+	_chat_cooldown = 6.0
+	# He stops walking and faces you for the exchange.
+	_state = "idle"
+	_idle_timer = maxf(_idle_timer, 2.6)
+	_chat_face = 2.6
+	var urgent := is_instance_valid(_player) and _player.get("urgency") != null \
+		and float(_player.get("urgency")) > 70.0
+	var line: String
+	if not _said_intro:
+		_said_intro = true
+		line = INTRO_LINES[randi_range(0, INTRO_LINES.size() - 1)] % npc_name
+	elif urgent and randf() < 0.5:
+		line = URGENT_LINES[randi_range(0, URGENT_LINES.size() - 1)]
+	elif randf() < 0.4:
+		line = ADVICE_LINES[randi_range(0, ADVICE_LINES.size() - 1)]
+	else:
+		line = LORE_LINES[randi_range(0, LORE_LINES.size() - 1)]
+	say(line, 3.2)
+
+
 func _pick_wander_target() -> void:
 	_wander_target = Vector3(randf_range(-2.0, 2.0), 0, global_position.z + randf_range(-8.0, 8.0))
 	_wander_timer = randf_range(3.0, 6.0)
@@ -130,6 +295,9 @@ func _physics_process(delta: float) -> void:
 	to_player.y = 0
 	var dist := to_player.length()
 	var dir := to_player.normalized()
+
+	_chat_cooldown = maxf(0.0, _chat_cooldown - delta)
+	_chat_face = maxf(0.0, _chat_face - delta)
 
 	match _state:
 		"wander":
@@ -169,6 +337,11 @@ func _physics_process(delta: float) -> void:
 				velocity.x = dir.x * SPEED + _knockback.x
 				velocity.z = dir.z * SPEED + _knockback.z
 				_play("Run")
+				# Hostiles narrate the chase. Loudly. In 3D.
+				_taunt_timer -= delta
+				if _taunt_timer <= 0.0:
+					say(CHASE_LINES[randi_range(0, CHASE_LINES.size() - 1)], 2.0)
+					_taunt_timer = randf_range(2.8, 5.0)
 			if _state == "chase" and dist < 1.9:
 				_state = "windup"
 				_timer = WINDUP_TIME
@@ -210,8 +383,15 @@ func _physics_process(delta: float) -> void:
 
 	move_and_slide()
 
+	# NPCs bump brooms and carts around too - the bathroom feels lived-in.
+	for i in get_slide_collision_count():
+		var c := get_slide_collision(i)
+		var rb := c.get_collider() as RigidBody3D
+		if rb:
+			rb.apply_central_impulse(-c.get_normal() * minf(rb.mass, 6.0) * 0.08)
+
 	var face := Vector3(velocity.x, 0, velocity.z)
-	if _state == "windup" or _state == "strike":
+	if _state == "windup" or _state == "strike" or _chat_face > 0.0:
 		face = _player.global_position - global_position
 		face.y = 0
 	if face.length() > 0.3:
@@ -228,6 +408,7 @@ func take_hit(dmg: int, from_dir: Vector3) -> void:
 	if neutral:
 		neutral = false
 		_state = "chase"
+		say(PROVOKED_LINES[randi_range(0, PROVOKED_LINES.size() - 1)], 2.0)
 	for mi in _meshes:
 		mi.material_overlay = _flash_mat
 	get_tree().create_timer(0.09).timeout.connect(func() -> void:
@@ -242,6 +423,7 @@ func take_hit(dmg: int, from_dir: Vector3) -> void:
 
 func _die() -> void:
 	_state = "dead"
+	_speech.visible = false
 	remove_from_group("enemies")
 	if _anim:
 		_anim.pause()

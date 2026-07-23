@@ -26,17 +26,21 @@ const WALL_X := 5.17
 
 ## Corridor props: scene, baked offset to cancel (XZ center, Y bottom), scale,
 ## optional collision box (size + center) so they work as obstacles.
+## The cart and broom moved out of here - they're physics objects now.
 const PROP_DEFS := [
-	{ "scene": preload("res://assets/janitor_cart.glb"), "off": Vector3(-0.246, 0.0, -0.0905), "scale": 1.0,
-		"col_size": Vector3(1.3, 1.1, 0.75), "col_pos": Vector3(0, 0.55, 0) },
-	{ "scene": preload("res://assets/janitor_broom.glb"), "off": Vector3(3.568, 0.0758, -2.4754), "scale": 1.0,
-		"pickup_item": "broom" },
 	{ "scene": preload("res://assets/wet_floor_sign.glb"), "off": Vector3(4.605, 0.0277, -0.0044), "scale": 0.18,
 		"col_size": Vector3(0.35, 0.85, 0.25), "col_pos": Vector3(0, 0.42, 0) },
 	{ "scene": preload("res://assets/plant.glb"), "off": Vector3(0, -0.32, 0), "scale": 0.6 },
 	{ "scene": preload("res://assets/lamp.glb"), "off": Vector3(0, -0.5709, 0), "scale": 0.55,
 		"col_size": Vector3(0.7, 3.4, 0.7), "col_pos": Vector3(0, 1.7, 0) },
 ]
+
+## Pushable cart + fall-over-able broom (measured merged AABBs).
+const CART_DEF := { "scene": preload("res://assets/janitor_cart.glb"),
+	"off": Vector3(-0.246, 0.0, -0.0905) }
+const BROOM_DEF := { "scene": preload("res://assets/janitor_broom.glb"),
+	"off": Vector3(3.568, 0.0758, -2.4754) }
+const BROOM_HEIGHT := 0.9
 
 const SINK_SCENE := preload("res://assets/sink_table.glb")
 const SINK_OFF := Vector3(11.8065, -0.1394, 36.0145)
@@ -299,6 +303,49 @@ func _spawn_starting_wanderers() -> void:
 			get_viewport().get_texture().get_image().save_png("res://tent2_check.png")
 			get_tree().quit()
 		)
+	if dbg == "npc":
+		# Chat check: wanderer in front, RMB'd programmatically.
+		get_tree().create_timer(1.5).timeout.connect(func() -> void:
+			_spawn_wanderer(Vector3(0.4, 0, -5.5))
+			player.global_position = Vector3(0.4, 0.1, -3.2)
+			player.rotation.y = 0.0
+		)
+		get_tree().create_timer(2.5).timeout.connect(func() -> void:
+			var npc := _chat_target()
+			print("NPC-TEST target=", npc, " name=", npc.npc_name if npc is ProtoEnemy else "?")
+			_chat()
+		)
+		get_tree().create_timer(3.4).timeout.connect(func() -> void:
+			get_tree().root.get_texture().get_image().save_png("res://npc_check.png")
+			get_tree().quit()
+		)
+	if dbg == "cart":
+		# Cart + leaning broom in front of the player; shove the cart and
+		# watch the broom lose its support.
+		get_tree().create_timer(1.5).timeout.connect(func() -> void:
+			var cart := _spawn_cart(Vector3(0.0, 0, -6.0), 0.0)
+			# Deterministic extras so the screenshot always has both brooms:
+			# one on the cart, one on the right wall.
+			_spawn_broom(Vector3(0.82, 0, -6.0), Vector3(-1, 0, 0), 0.2, cart)
+			_spawn_broom(Vector3(WALL_X - 0.32, 0, -5.2), Vector3(1, 0, 0))
+			player.global_position = Vector3(0.5, 0.1, -3.0)
+			player.rotation.y = -0.35
+		)
+		get_tree().create_timer(2.6).timeout.connect(func() -> void:
+			get_tree().root.get_texture().get_image().save_png("res://cart_check1.png")
+			for child in get_children():
+				if child is RigidBody3D and child.mass > 10.0:
+					child.apply_central_impulse(Vector3(3.0, 0, -40.0))
+					print("CART-TEST shoved cart")
+		)
+		get_tree().create_timer(4.4).timeout.connect(func() -> void:
+			for child in get_children():
+				if child is RigidBody3D:
+					print("CART-TEST body mass=", child.mass, " pos=", child.global_position,
+						" rot=", child.rotation)
+			get_tree().root.get_texture().get_image().save_png("res://cart_check2.png")
+			get_tree().quit()
+		)
 	if dbg == "wanderer":
 		# Stand in front of a fresh wanderer and screenshot the new model.
 		get_tree().create_timer(1.5).timeout.connect(func() -> void:
@@ -362,6 +409,65 @@ func _unhandled_input(event: InputEvent) -> void:
 			_interact()
 		elif event.physical_keycode == KEY_R and game_ended:
 			get_tree().reload_current_scene()
+	elif event is InputEventMouseButton and event.pressed \
+			and event.button_index == MOUSE_BUTTON_RIGHT \
+			and not game_ended and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
+		_chat()
+
+
+## One-off 3D speech at a world position (seated occupants, crawlers - anyone
+## without their own bubble). Words live in the scene, not on the screen.
+func _say_3d(pos: Vector3, text: String, dur := 3.0) -> void:
+	var lab := Label3D.new()
+	lab.text = text
+	lab.font = load("res://assets/pixel_font.ttf")
+	lab.font_size = 30
+	lab.outline_size = 8
+	lab.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	lab.vertical_alignment = VERTICAL_ALIGNMENT_BOTTOM
+	lab.width = 320.0
+	lab.autowrap_mode = TextServer.AUTOWRAP_WORD
+	lab.modulate = Color(1.0, 0.98, 0.85)
+	add_child(lab)
+	_track(lab, pos.z)
+	lab.global_position = pos
+	get_tree().create_timer(dur).timeout.connect(func() -> void:
+		if is_instance_valid(lab):
+			lab.queue_free()
+	)
+
+
+## The nearest conversable NPC roughly in front of the player.
+func _chat_target() -> Node3D:
+	var f: Vector3 = player.facing()
+	var best: Node3D = null
+	var best_score := 0.55
+	for e in get_tree().get_nodes_in_group("enemies"):
+		var to_e: Vector3 = e.global_position - player.global_position
+		# Pooled crawlers park 60m below the floor - not conversable.
+		if absf(to_e.y) > 2.0:
+			continue
+		to_e.y = 0
+		var d := to_e.length()
+		if d > 3.2 or d < 0.01:
+			continue
+		var score := f.dot(to_e.normalized())
+		if score > best_score:
+			best_score = score
+			best = e
+	return best
+
+
+func _chat() -> void:
+	var npc := _chat_target()
+	if npc == null:
+		return
+	if npc is ProtoEnemy:
+		(npc as ProtoEnemy).chat()
+	else:
+		# The crawler. It does not have a lot to say.
+		_say_3d(npc.global_position + Vector3(0, 1.0, 0),
+			["*wet gurgling*", "*slap slap slap*", "*a sound you will not forget*"].pick_random(), 2.0)
 
 
 ## What would E do right now? One resolver feeds both the floating prompt
@@ -448,7 +554,7 @@ func _disturb(stall: Stall) -> void:
 	var pos := stall.interior_point()
 	if pos.distance_to(player.global_position) < 1.1:
 		pos = stall.to_global(Vector3(0, 0, -1.4))
-	_spawn_enemy(pos)
+	_spawn_enemy(pos).say("I WAS SITTING THERE!", 2.2)
 
 
 ## The toilet as a push-your-luck gamble: your body sits down on it while
@@ -472,8 +578,9 @@ func _sit_on(stall: Stall) -> void:
 	tw.tween_interval(1.5)
 	tw.tween_callback(func() -> void:
 		if rng.randf() < 0.65:
-			player.urgency = maxf(0.0, player.urgency - 14.0)
-			_show_message("A moment of shameful relief... (urgency down)")
+			# The ONLY source of relief in the whole place now. Worth the risk.
+			player.urgency = maxf(0.0, player.urgency - 35.0)
+			_show_message("Sweet, shameful relief... (urgency WAY down)")
 			get_tree().create_timer(0.8).timeout.connect(player.stand_up)
 		else:
 			_spawn_tentacle(stall)
@@ -546,10 +653,20 @@ func _update_prompt() -> void:
 	var pulse := 0.75 + 0.25 * sin(_prompt_pulse)
 	var t := _interact_target()
 	if t.is_empty():
-		_prompt.visible = false
-		if _prompt_hud:
-			_prompt_hud.visible = false
-		return
+		# No stall business in reach - maybe somebody to talk to instead.
+		var npc := _chat_target()
+		if npc != null:
+			var label := "RMB - ...WHY?"
+			if npc is ProtoEnemy:
+				var pe := npc as ProtoEnemy
+				label = ("RMB - TALK TO %s" if pe.neutral else "RMB - REASON WITH %s") % pe.npc_name
+			# Chest height - the name tag and speech bubble own the head space.
+			t = { "label": label, "point": npc.global_position + Vector3(0, 1.1, 0) }
+		else:
+			_prompt.visible = false
+			if _prompt_hud:
+				_prompt_hud.visible = false
+			return
 	_prompt.visible = true
 	_prompt.text = t["label"]
 	_prompt.global_position = t["point"] + Vector3(0, 0.28, 0)
@@ -597,11 +714,22 @@ func _spawn_stall_pair(z: float) -> void:
 	# Janitorial clutter - never in the first ~10m (props were launching the
 	# player onto the roof at spawn via depenetration).
 	if pair_count > 6 and rng.randf() < 0.18:
-		var def: Dictionary = PROP_DEFS[rng.randi_range(0, PROP_DEFS.size() - 1)]
-		var px: float = [-2.55, 2.55][rng.randi_range(0, 1)]
-		if rng.randf() < 0.3:
-			px = rng.randf_range(-1.4, 1.4)
-		_spawn_prop(def, Vector3(px, 0, z + STALL_SPACING * 0.5), rng.randf_range(0, TAU))
+		var r := rng.randf()
+		var pz := z + STALL_SPACING * 0.5
+		if r < 0.3:
+			# Cart parked mid-corridor-ish, usually with its broom leaning on it.
+			_spawn_cart(Vector3(rng.randf_range(-2.2, 2.2), 0, pz), rng.randf_range(0, TAU))
+		elif r < 0.45:
+			# Lone broom: always leaning against the corridor wall, never
+			# free-standing in space like a haunted exhibit.
+			var side := [-1.0, 1.0][rng.randi_range(0, 1)] as float
+			_spawn_broom(Vector3(side * (WALL_X - 0.32), 0, pz), Vector3(side, 0, 0))
+		else:
+			var def: Dictionary = PROP_DEFS[rng.randi_range(0, PROP_DEFS.size() - 1)]
+			var px: float = [-2.55, 2.55][rng.randi_range(0, 1)]
+			if rng.randf() < 0.3:
+				px = rng.randf_range(-1.4, 1.4)
+			_spawn_prop(def, Vector3(px, 0, pz), rng.randf_range(0, TAU))
 
 	# Rarely: an entire fallen tree, jammed diagonally through the building.
 	if pair_count > 10 and rng.randf() < 0.025:
@@ -627,6 +755,7 @@ func _on_stall_opened(stall: Stall, outcome: Stall.Outcome) -> void:
 			# He stays seated at first, glaring. Linger (or yank his seat)
 			# and he gets up. Walk away fast enough and nothing happens.
 			_show_message("OCCUPIED. He is glaring at you.")
+			_say_3d(stall.seat_point() + Vector3(0, 1.35, 0), "DO YOU MIND?!", 2.2)
 			get_tree().create_timer(rng.randf_range(2.5, 5.0)).timeout.connect(func() -> void:
 				if is_instance_valid(stall) and stall.has_seated_occupant() \
 						and stall.global_position.distance_to(player.global_position) < 7.0:
@@ -635,23 +764,24 @@ func _on_stall_opened(stall: Stall, outcome: Stall.Outcome) -> void:
 					var pos := stall.interior_point()
 					if pos.distance_to(player.global_position) < 1.1:
 						pos = stall.to_global(Vector3(0, 0, -1.4))
-					_spawn_enemy(pos)
+					_spawn_enemy(pos).say("YOU COULDN'T JUST WALK AWAY!", 2.2)
 			)
 		Stall.Outcome.LOOT:
 			if not player.has_plunger and rng.randf() < 0.4:
 				player.give_plunger()
 				_show_message("Someone left a PLUNGER! (stronger but slower swings)")
 			else:
-				player.urgency = maxf(0.0, player.urgency - 18.0)
-				_show_message("Empty... a moment of calm. (urgency down)")
+				# No freebies: doors don't relieve anything anymore. Only
+				# actually sitting on a bowl lowers urgency now.
+				_show_message("Empty. Staring at it helps nothing. SIT somewhere.")
 		Stall.Outcome.FRIENDLY:
 			# He stays seated. He's busy. But he's kind.
 			if not player.has_plunger:
 				player.give_plunger()
-				_show_message("\"Take my plunger. Godspeed.\" (he does not get up)")
+				_say_3d(stall.seat_point() + Vector3(0, 1.35, 0), "Take my plunger. Godspeed.", 3.0)
+				_show_message("Got a PLUNGER! (stronger but slower swings)")
 			else:
-				player.urgency = maxf(0.0, player.urgency - 12.0)
-				_show_message("\"Good luck out there.\" (urgency down)")
+				_say_3d(stall.seat_point() + Vector3(0, 1.35, 0), "Good luck out there.", 3.0)
 		Stall.Outcome.EMPTY:
 			# Sometimes "vacant" just means whatever's in there doesn't count as a person.
 			if stall_count > 16 and rng.randf() < 0.3:
@@ -661,13 +791,14 @@ func _on_stall_opened(stall: Stall, outcome: Stall.Outcome) -> void:
 				_show_message("Vacant... but unspeakable. Sit if you dare.")
 
 
-func _spawn_enemy(pos: Vector3) -> void:
+func _spawn_enemy(pos: Vector3) -> ProtoEnemy:
 	var e: ProtoEnemy = ENEMY_SCENE.instantiate()
 	# Set local position BEFORE add_child - setting global_position on a
 	# brand-new CharacterBody3D in the same _ready as the player was
 	# clobbering the player's transform (both ended up on one tile).
 	e.position = pos + Vector3(0, 0.1, 0)
 	add_child(e)
+	return e
 
 
 ## A Wanderer: same guy, zero malice. He's just also stuck in here, pacing
@@ -800,6 +931,111 @@ func _spawn_prop(def: Dictionary, pos: Vector3, yaw: float) -> void:
 			if body_in is ProtoPlayer and body_in.add_item(item):
 				_show_message("Picked up the %s! (1-4 to switch items)" % item.to_upper())
 				wrapper.queue_free()
+		)
+
+
+## The janitorial cart is a real physics object now: shove it and it rolls.
+## Rotation is locked to yaw so it can't tip into the geometry.
+func _spawn_cart(pos: Vector3, yaw: float) -> RigidBody3D:
+	var cart := RigidBody3D.new()
+	cart.mass = 30.0
+	cart.axis_lock_angular_x = true
+	cart.axis_lock_angular_z = true
+	cart.linear_damp = 3.5
+	cart.angular_damp = 6.0
+	var pm := PhysicsMaterial.new()
+	pm.friction = 0.7
+	cart.physics_material_override = pm
+	add_child(cart)
+	_track(cart, pos.z)
+	cart.position = pos
+	cart.rotation.y = yaw
+
+	if not _prop_merge_cache.has(CART_DEF["scene"]):
+		_prop_merge_cache[CART_DEF["scene"]] = MeshMerge.merge_scene(CART_DEF["scene"])["mesh"]
+	var mi := MeshInstance3D.new()
+	mi.mesh = _prop_merge_cache[CART_DEF["scene"]]
+	mi.position = -CART_DEF["off"]
+	mi.visibility_range_end = 32.0
+	cart.add_child(mi)
+
+	var col := CollisionShape3D.new()
+	var box := BoxShape3D.new()
+	box.size = Vector3(1.25, 1.09, 0.7)
+	col.shape = box
+	col.position = Vector3(0, 0.56, 0)
+	cart.add_child(col)
+
+	# The janitor's broom usually stays with his cart, leaning on it. Shove
+	# the cart out from under it and physics does the rest.
+	if rng.randf() < 0.7:
+		var side_dir := Vector3(cos(yaw), 0, -sin(yaw))
+		if rng.randf() < 0.5:
+			side_dir = -side_dir
+		_spawn_broom(pos + side_dir * 0.82, -side_dir, 0.2, cart)
+	return cart
+
+
+## A broom that actually leans (on a wall or the cart) and falls over when
+## disturbed. Never free-standing - brooms don't do that. `support` is the
+## body it leans on: touching it doesn't drop the broom, but taking it AWAY does.
+func _spawn_broom(pos: Vector3, lean_dir: Vector3, tilt := 0.36, support: PhysicsBody3D = null) -> void:
+	var broom := RigidBody3D.new()
+	broom.mass = 1.5
+	broom.linear_damp = 0.3
+	broom.angular_damp = 0.5
+	var pm := PhysicsMaterial.new()
+	pm.friction = 1.0
+	broom.physics_material_override = pm
+	add_child(broom)
+	_track(broom, pos.z)
+	broom.position = pos + Vector3(0, 0.05, 0)
+	# Yaw local +Z toward the support, then pitch into the lean.
+	broom.rotation = Vector3(tilt, atan2(lean_dir.x, lean_dir.z), 0.0)
+	# Frozen in the lean - raw physics let it slide down the wall on spawn.
+	# The first PERSON (or cart) that touches it unfreezes it, and over it goes.
+	broom.freeze = true
+
+	if not _prop_merge_cache.has(BROOM_DEF["scene"]):
+		_prop_merge_cache[BROOM_DEF["scene"]] = MeshMerge.merge_scene(BROOM_DEF["scene"])["mesh"]
+	var mi := MeshInstance3D.new()
+	mi.mesh = _prop_merge_cache[BROOM_DEF["scene"]]
+	mi.position = -BROOM_DEF["off"]
+	mi.visibility_range_end = 32.0
+	broom.add_child(mi)
+
+	var col := CollisionShape3D.new()
+	var box := BoxShape3D.new()
+	box.size = Vector3(0.2, BROOM_HEIGHT - 0.04, 0.1)
+	col.shape = box
+	col.position = Vector3(0, BROOM_HEIGHT * 0.5 + 0.05, 0)
+	broom.add_child(col)
+
+	# Still a pickup: walk over it (fallen or not) to grab it.
+	var area := Area3D.new()
+	broom.add_child(area)
+	var acol := CollisionShape3D.new()
+	var asphere := SphereShape3D.new()
+	asphere.radius = 0.6
+	acol.shape = asphere
+	acol.position.y = 0.35
+	area.add_child(acol)
+	area.body_entered.connect(func(body_in: Node3D) -> void:
+		if body_in is ProtoPlayer and body_in.add_item("broom"):
+			_show_message("Picked up the BROOM! (1-4 to switch items)")
+			broom.queue_free()
+			return
+		# Bumped by a person or a stray cart (never the floor, never its own
+		# support): drop the lean.
+		if body_in is CharacterBody3D \
+				or (body_in is RigidBody3D and body_in != broom and body_in != support):
+			broom.freeze = false
+	)
+	if support != null:
+		# The cart rolled out from under it: gravity resumes.
+		area.body_exited.connect(func(body_out: Node3D) -> void:
+			if body_out == support and is_instance_valid(broom):
+				broom.freeze = false
 		)
 
 
