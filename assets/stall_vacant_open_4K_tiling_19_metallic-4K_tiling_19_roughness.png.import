@@ -2,14 +2,11 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://bsrsi1iq01t4o"
+uid="uid://dnqq43d70ooir"
 path.s3tc="res://.godot/imported/stall_vacant_open_4K_tiling_19_metallic-4K_tiling_19_roughness.png-ba24917f5e2101bc738d7355d3fb65fb.s3tc.ctex"
 metadata={
 "imported_formats": ["s3tc_bptc"],
 "vram_texture": true
-}
-generator_parameters={
-"md5": "c2c7c596251be6f4610162f463aebc35"
 }
 
 [deps]

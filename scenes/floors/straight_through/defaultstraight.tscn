@@ -1,6 +1,7 @@
 [gd_scene format=3 uid="uid://c28l2jvso4gpm"]
 
 [ext_resource type="PackedScene" uid="uid://d2cl357p6d24u" path="res://scenes/base_objects/floor_tile.tscn" id="1_kwbbp"]
+[ext_resource type="PackedScene" uid="uid://rw7yt3nu2kfy" path="res://scenes/enemy.tscn" id="2_ntysh"]
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_1swbr"]
 size = Vector3(44, 10, 1)
@@ -183,3 +184,23 @@ shape = SubResource("BoxShape3D_w4ap0")
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.99999857, 4.9999995, 0.5)
 mesh = SubResource("BoxMesh_7wfm7")
 skeleton = NodePath("../../..")
+
+[node name="Enemies" type="Node3D" parent="." unique_id=349374286]
+transform = Transform3D(0.01, 0, 0, 0, 0.01, 0, 0, 0, 0.01, 0, 0.015, 0)
+
+[node name="Enemy" parent="Enemies" unique_id=1231811586 instance=ExtResource("2_ntysh")]
+
+[node name="Enemy2" parent="Enemies" unique_id=1585317759 instance=ExtResource("2_ntysh")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 7)
+
+[node name="Enemy3" parent="Enemies" unique_id=264901755 instance=ExtResource("2_ntysh")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 25, 0, 7)
+
+[node name="Enemy4" parent="Enemies" unique_id=1482631988 instance=ExtResource("2_ntysh")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 25, 0, -1.5)
+
+[node name="Enemy5" parent="Enemies" unique_id=898015675 instance=ExtResource("2_ntysh")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -21.5, 0, -1.5)
+
+[node name="Enemy6" parent="Enemies" unique_id=1671002790 instance=ExtResource("2_ntysh")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -21.5, 0, 8)

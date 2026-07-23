@@ -2,6 +2,7 @@
 
 [ext_resource type="PackedScene" uid="uid://d2cl357p6d24u" path="res://scenes/base_objects/floor_tile.tscn" id="1_7ney2"]
 [ext_resource type="PackedScene" uid="uid://l0lo3nuk7jlv" path="res://scenes/base_objects/block.tscn" id="2_78lbj"]
+[ext_resource type="PackedScene" uid="uid://rw7yt3nu2kfy" path="res://scenes/enemy.tscn" id="3_78lbj"]
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_1swbr"]
 size = Vector3(44, 10, 1)
@@ -202,3 +203,24 @@ transform = Transform3D(-3.635353e-07, 0, 47.93572, 0, 20.468674, 0, -8.316718, 
 
 [node name="Block7" parent="Node3D" unique_id=240378171 instance=ExtResource("2_78lbj")]
 transform = Transform3D(-3.635353e-07, 0, 47.93572, 0, 20.468674, 0, -8.316718, 0, -2.0953369e-06, 55.180458, 0, 80.69827)
+
+[node name="Enemies" type="Node3D" parent="." unique_id=1042346996]
+transform = Transform3D(0.01, 0, 0, 0, 0.01, 0, 0, 0, 0.01, 0.14, 0.015, 0)
+
+[node name="Enemy" parent="Enemies" unique_id=1231811586 instance=ExtResource("3_78lbj")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 42)
+
+[node name="Enemy2" parent="Enemies" unique_id=1528999200 instance=ExtResource("3_78lbj")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 7)
+
+[node name="Enemy3" parent="Enemies" unique_id=1786944173 instance=ExtResource("3_78lbj")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 25, 0, 7)
+
+[node name="Enemy4" parent="Enemies" unique_id=825228231 instance=ExtResource("3_78lbj")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 25, 0, -1.5)
+
+[node name="Enemy5" parent="Enemies" unique_id=195890733 instance=ExtResource("3_78lbj")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -21.5, 0, 18.5)
+
+[node name="Enemy6" parent="Enemies" unique_id=229644424 instance=ExtResource("3_78lbj")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -54.5, 0, 8)

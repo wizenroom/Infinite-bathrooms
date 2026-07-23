@@ -1,6 +1,8 @@
 [gd_scene format=3 uid="uid://dh3kqcfi5h3e4"]
 
-[ext_resource type="PackedScene" uid="uid://jcj7s7r5k0lq" path="res://scenes/view_model.tscn" id="1_jpoaf"]
+[ext_resource type="PackedScene" uid="uid://jcj7s7r5k0lq" path="res://scenes/view_model.tscn" id="1_3vyb7"]
+[ext_resource type="Script" uid="uid://cl6vo4g8oe1t1" path="res://scenes/attack_component.gd" id="2_g2els"]
+[ext_resource type="Script" uid="uid://bk7bbsgs32hoi" path="res://scripts/attacks/attackdata.gd" id="3_qhqgy"]
 
 [sub_resource type="GDScript" id="GDScript_5oqox"]
 script/source = "extends CharacterBody3D
@@ -78,7 +80,7 @@ script/source = "extends CharacterBody3D
 @onready var head = $Head
 @onready var camera = $Head/Camera
 
-@onready var view_model: ViewModelComponent = $Head/Camera/ViewModel
+@onready var attackcomponent: AttackComponent = $Head/AttackComponent
 
 var is_sprinting : bool = false
 var is_crouching : bool = false
@@ -289,9 +291,18 @@ func _set_speed(dir):
 	
 func _process(delta: float) -> void:
 	if is_using:
-		view_model.punch()
+		attackcomponent.attack()
 	# Runs every frame
 "
+
+[sub_resource type="Resource" id="Resource_qhqgy"]
+script = ExtResource("3_qhqgy")
+cooldown = 0.1
+damage = 100.0
+metadata/_custom_type_script = "uid://bk7bbsgs32hoi"
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_1edjn"]
+size = Vector3(3.1000001, 2.2, 4.3)
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_5oqox"]
 
@@ -308,8 +319,21 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.52610177, 0)
 
 [node name="Camera" type="Camera3D" parent="Head" unique_id=1937679943]
 
-[node name="ViewModel" parent="Head/Camera" unique_id=1333489432 instance=ExtResource("1_jpoaf")]
+[node name="ViewModel" parent="Head/Camera" unique_id=1333489432 instance=ExtResource("1_3vyb7")]
 transform = Transform3D(0.9659258, 0, 0.25881904, 0, 1, 0, -0.25881904, 0, 0.9659258, 0, 0, 0)
+
+[node name="AttackComponent" type="Node3D" parent="Head" unique_id=1721136581 node_paths=PackedStringArray("view_model")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.52610177, 0)
+script = ExtResource("2_g2els")
+punch = SubResource("Resource_qhqgy")
+view_model = NodePath("../Camera/ViewModel")
+
+[node name="PunchHitbox" type="Area3D" parent="Head/AttackComponent" unique_id=538317879]
+monitorable = false
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Head/AttackComponent/PunchHitbox" unique_id=489210504]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.29999992, -1.6500001)
+shape = SubResource("BoxShape3D_1edjn")
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="." unique_id=971168592]
 shape = SubResource("CapsuleShape3D_5oqox")
