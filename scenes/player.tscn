@@ -339,5 +339,6 @@ shape = SubResource("BoxShape3D_1edjn")
 shape = SubResource("CapsuleShape3D_5oqox")
 
 [node name="MeshInstance3D" type="MeshInstance3D" parent="." unique_id=1557119328]
+transparency = 1.0
 mesh = SubResource("CapsuleMesh_5oqox")
 surface_material_override/0 = SubResource("StandardMaterial3D_luvdq")
