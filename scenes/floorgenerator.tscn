@@ -3,6 +3,7 @@
 [ext_resource type="Script" uid="uid://ddlxnyx0lknb0" path="res://scenes/floorgenerator.gd" id="1_bpbj4"]
 [ext_resource type="PackedScene" uid="uid://dh3kqcfi5h3e4" path="res://gremlins_fpc/addons/gremlins_first_person/gremlins_fpc.tscn" id="2_cdwa8"]
 [ext_resource type="Shader" uid="uid://cue8ea1fl8kj7" path="res://scenes/retro.gdshader" id="3_4anfk"]
+[ext_resource type="PackedScene" uid="uid://befo6a3gu1dho" path="res://scenes/inventory_gui.tscn" id="4_ydq5j"]
 
 [sub_resource type="Environment" id="Environment_1edjn"]
 ambient_light_source = 2
@@ -36,6 +37,7 @@ shadow_blur = 0.0
 environment = SubResource("Environment_1edjn")
 
 [node name="CanvasLayer" type="CanvasLayer" parent="." unique_id=2010208150]
+layer = 2
 
 [node name="ColorRect" type="ColorRect" parent="CanvasLayer" unique_id=1462790505]
 material = SubResource("ShaderMaterial_1edjn")
@@ -45,3 +47,8 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
+
+[node name="CanvasLayer2" type="CanvasLayer" parent="." unique_id=2002008418]
+layer = 3
+
+[node name="InventoryGUI" parent="CanvasLayer2" unique_id=711399597 instance=ExtResource("4_ydq5j")]

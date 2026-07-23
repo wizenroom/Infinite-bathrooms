@@ -1,0 +1,34 @@
+[gd_scene format=3 uid="uid://befo6a3gu1dho"]
+
+[ext_resource type="Texture2D" uid="uid://c4mvk6vfbueuh" path="res://assets/inventory_slot.png" id="1_2vb5y"]
+
+[node name="InventoryGUI" type="Control" unique_id=711399597]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="HBoxContainer" type="HBoxContainer" parent="." unique_id=1539582361]
+layout_mode = 0
+offset_left = 20.0
+offset_top = 562.0
+offset_right = 313.0
+offset_bottom = 637.0
+
+[node name="TextureRect" type="TextureRect" parent="HBoxContainer" unique_id=1983627496]
+layout_mode = 2
+texture = ExtResource("1_2vb5y")
+expand_mode = 2
+
+[node name="TextureRect2" type="TextureRect" parent="HBoxContainer" unique_id=153489062]
+layout_mode = 2
+texture = ExtResource("1_2vb5y")
+expand_mode = 2
+
+[node name="TextureRect3" type="TextureRect" parent="HBoxContainer" unique_id=1625406707]
+layout_mode = 2
+texture = ExtResource("1_2vb5y")
+expand_mode = 2

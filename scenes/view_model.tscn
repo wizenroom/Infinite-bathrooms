@@ -1,0 +1,15 @@
+[gd_scene format=3 uid="uid://jcj7s7r5k0lq"]
+
+[ext_resource type="Script" uid="uid://bcpxkohvceoet" path="res://scenes/view_model.gd" id="1_j4url"]
+[ext_resource type="PackedScene" uid="uid://87pi275ahign" path="res://assets/arm.glb" id="1_nbbd8"]
+
+[node name="ViewModel" type="Node3D" unique_id=1333489432]
+script = ExtResource("1_j4url")
+
+[node name="NormalizedNode" type="Node3D" parent="." unique_id=1966714573]
+
+[node name="ArmNode" type="Node3D" parent="NormalizedNode" unique_id=121651132]
+transform = Transform3D(0.1, 0, 0, 0, 0.1, 0, 0, 0, 0.1, -4, -2.9999998, -2)
+
+[node name="arm" parent="NormalizedNode/ArmNode" unique_id=767750633 instance=ExtResource("1_nbbd8")]
+transform = Transform3D(0.51763815, 4.5253365e-08, -1.9318516, -1.7484555e-07, 2, 0, -1.9318516, -1.6888784e-07, -0.51763815, 49, 5, 2)

@@ -1,5 +1,7 @@
 [gd_scene format=3 uid="uid://dh3kqcfi5h3e4"]
 
+[ext_resource type="PackedScene" uid="uid://jcj7s7r5k0lq" path="res://scenes/view_model.tscn" id="1_jpoaf"]
+
 [sub_resource type="GDScript" id="GDScript_5oqox"]
 script/source = "extends CharacterBody3D
 
@@ -9,7 +11,7 @@ script/source = "extends CharacterBody3D
 ##Can be controlled using the keyboard and the mouse
 @export var supports_keyboard : bool = true
 ##Can be controlled using a controller
-@export var supports_controller : bool = true
+@export var supports_controller : bool = false
 ##The higher the value, the faster it is to look around
 @export var controller_sensitivity : float = 1
 ##Only use with some controllers (notably the snes) so that you don't have to spam the looking around keys
@@ -70,9 +72,13 @@ script/source = "extends CharacterBody3D
 @export var look_up : String = \"look_up\"
 @export var look_down : String = \"look_down\"
 
+@export var use : String = \"use\"
+
 
 @onready var head = $Head
 @onready var camera = $Head/Camera
+
+@onready var view_model: ViewModelComponent = $Head/Camera/ViewModel
 
 var is_sprinting : bool = false
 var is_crouching : bool = false
@@ -80,6 +86,8 @@ var is_crouching : bool = false
 var head_original_height : float
 
 var button_pressed : Array
+
+var is_using : bool = false
 
 
 
@@ -155,6 +163,12 @@ func _input(event: InputEvent) -> void:
 			is_flying = true
 		elif Input.is_action_just_released(flying):
 			is_flying = false
+			
+	if Input.is_action_just_pressed(use):
+		is_using = true
+	elif Input.is_action_just_released(use):
+		is_using = false
+		
 
 func _crouch():
 	var target_head_pos = head_original_height - crouch_deepness
@@ -257,7 +271,6 @@ func _physics_process(delta: float) -> void:
 				if camera.rotation_degrees.x > -90:
 					camera.rotation_degrees.x -= controller_sensitivity
 
-
 func _set_speed(dir):
 	var a : float
 	if is_flying:
@@ -273,6 +286,11 @@ func _set_speed(dir):
 		a = speed
 	velocity.x = dir.x * a
 	velocity.z = dir.z * a
+	
+func _process(delta: float) -> void:
+	if is_using:
+		view_model.punch()
+	# Runs every frame
 "
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_5oqox"]
@@ -289,6 +307,9 @@ script = SubResource("GDScript_5oqox")
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.52610177, 0)
 
 [node name="Camera" type="Camera3D" parent="Head" unique_id=1937679943]
+
+[node name="ViewModel" parent="Head/Camera" unique_id=1333489432 instance=ExtResource("1_jpoaf")]
+transform = Transform3D(0.9659258, 0, 0.25881904, 0, 1, 0, -0.25881904, 0, 0.9659258, 0, 0, 0)
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="." unique_id=971168592]
 shape = SubResource("CapsuleShape3D_5oqox")
